@@ -2,7 +2,7 @@
   description = "gymbro";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-25.11";
+    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-26.05";
     flake-utils.url = "github:numtide/flake-utils?ref=11707dc2f618dd54ca8739b309ec4fc024de578b";
   };
 
@@ -73,12 +73,12 @@
                   libpulseaudio
                   stdenv.cc.cc.lib
                   vulkan-loader
-                  xorg.libX11
-                  xorg.libXext
-                  xorg.libXcursor
-                  xorg.libXi
-                  xorg.libXrender
-                  xorg.libXtst
+                  libX11
+                  libXext
+                  libXcursor
+                  libXi
+                  libXrender
+                  libXtst
                 ]
               );
 
@@ -90,12 +90,12 @@
                     libpulseaudio
                     stdenv.cc.cc.lib
                     vulkan-loader
-                    xorg.libX11
-                    xorg.libXext
-                    xorg.libXcursor
-                    xorg.libXi
-                    xorg.libXrender
-                    xorg.libXtst
+                    libX11
+                    libXext
+                    libXcursor
+                    libXi
+                    libXrender
+                    libXtst
                   ]
                 )
               );
