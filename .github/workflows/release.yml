@@ -1,0 +1,113 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build-fdroid:
+    name: Build signed F-Droid APKs
+    if: startsWith(github.event.release.tag_name, 'v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Java 17
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        with:
+          packages: ''
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Cache Gradle
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: v1-${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            v1-${{ runner.os }}-gradle-
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Validate release version
+        run: |
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#v}"
+          app_version="$(sed -n 's/^VERSION_NAME=//p' android/version.properties)"
+          test -n "$app_version"
+          test "$tag_version" = "$app_version" || {
+            echo "Release tag $GITHUB_REF_NAME does not match VERSION_NAME=$app_version" >&2
+            exit 1
+          }
+
+      - name: Run ktlint
+        run: ./gradlew :android:ktlintCheck
+
+      - name: Run detekt
+        run: ./gradlew :android:detekt
+
+      - name: Run JVM tests
+        run: ./gradlew :android:testDebugUnitTest
+
+      - name: Run Android lint
+        run: ./gradlew :android:lintDebug
+
+      - name: Build signed F-Droid APKs
+        env:
+          GYMBRO_KEYSTORE_BASE64: ${{ secrets.GYMBRO_KEYSTORE_BASE64 }}
+          GYMBRO_KEYSTORE_PASSWORD: ${{ secrets.GYMBRO_KEYSTORE_PASSWORD }}
+          GYMBRO_KEY_ALIAS: ${{ secrets.GYMBRO_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          : "${GYMBRO_KEYSTORE_BASE64:?GYMBRO_KEYSTORE_BASE64 is required}"
+          : "${GYMBRO_KEYSTORE_PASSWORD:?GYMBRO_KEYSTORE_PASSWORD is required}"
+          : "${GYMBRO_KEY_ALIAS:?GYMBRO_KEY_ALIAS is required}"
+
+          trap 'rm -f android/release.jks' EXIT
+          printf '%s' "$GYMBRO_KEYSTORE_BASE64" | base64 --decode > android/release.jks
+          export GYMBRO_KEYSTORE_PATH=release.jks
+          export SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
+
+          ./gradlew :android:assembleRelease
+
+          mkdir -p dist
+          version="$(sed -n 's/^VERSION_NAME=//p' android/version.properties)"
+          apk_count=0
+          for apk in android/build/outputs/apk/release/android-*-release.apk; do
+            test -f "$apk"
+            "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" verify "$apk"
+            base="$(basename "$apk")"
+            variant="${base#android-}"
+            variant="${variant%-release.apk}"
+            cp "$apk" "dist/gymbro-v${version}-${variant}-fdroid.apk"
+            apk_count=$((apk_count + 1))
+          done
+          test "$apk_count" -gt 0
+
+      - name: Upload F-Droid APKs
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gymbro-release-apks-fdroid
+          path: dist/*-fdroid.apk
+          if-no-files-found: error
+
+      - name: Attach F-Droid APKs to release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v2
+        with:
+          files: dist/*-fdroid.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

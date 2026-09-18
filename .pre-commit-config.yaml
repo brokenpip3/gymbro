@@ -1,0 +1,35 @@
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
+  hooks:
+    - id: end-of-file-fixer
+    - id: trailing-whitespace
+    - id: check-toml
+
+- repo: https://github.com/python-jsonschema/check-jsonschema
+  rev: c4654a7e007c9619a5eb63c39a456572a0fa1851  # frozen: 0.38.0
+  hooks:
+    - id: check-dependabot
+    - id: check-github-workflows
+      args: ["--verbose"]
+
+- repo: https://github.com/brokenpip3/pre-commit-hooks
+  rev: dd7b3821637ba3c3a8628ad487fd84edec8006f2  # frozen: 0.0.1
+  hooks:
+    - id: github-actions-hash
+      files: ^.github/workflows/.*\.(yml|yaml)$ # limit only to github workflows
+
+- repo: local
+  hooks:
+    - id: ktlint
+      name: ktlint
+      entry: ./gradlew ktlintCheck
+      language: system
+      types: [kotlin]
+      pass_filenames: false
+    - id: detekt
+      name: detekt
+      entry: ./gradlew detekt
+      language: system
+      types: [kotlin]
+      pass_filenames: false

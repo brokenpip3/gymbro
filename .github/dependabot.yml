@@ -1,0 +1,53 @@
+version: 2
+updates:
+  # Android/Kotlin (Gradle) updates. The Gradle root is the repository root;
+  # it includes the application module at /android.
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      android-toolchain:
+        patterns:
+          - "com.android.application"
+          - "com.google.devtools.ksp"
+          - "org.jetbrains.kotlin.plugin.compose"
+          - "org.jetbrains.kotlin.plugin.serialization"
+          - "org.jlleitschuh.gradle.ktlint"
+          - "io.gitlab.arturbosch.detekt"
+          - "gradle-wrapper"
+      android-test-tooling:
+        patterns:
+          - "androidx.test:*"
+          - "androidx.test.ext:*"
+          - "androidx.test.espresso:*"
+          - "androidx.navigation:navigation-testing"
+          - "androidx.room:room-testing"
+          - "org.jetbrains.kotlinx:kotlinx-coroutines-test"
+      android-runtime:
+        patterns:
+          - "androidx.*"
+          - "org.jetbrains.kotlinx:*"
+        exclude-patterns:
+          - "androidx.test:*"
+          - "androidx.test.ext:*"
+          - "androidx.test.espresso:*"
+          - "androidx.navigation:navigation-testing"
+          - "androidx.room:room-testing"
+          - "org.jetbrains.kotlinx:kotlinx-coroutines-test"
+
+  # GitHub Actions updates
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions-dependencies:
+        patterns:
+          - "*"
+
+  # Nix flake input updates
+  - package-ecosystem: "nix"
+    directory: "/"
+    schedule:
+      interval: "weekly"

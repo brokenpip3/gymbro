@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Gymbro" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
+    </style>
+
+    <style name="Theme.Gymbro.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#FAFBF8</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/gymbro_splash_icon</item>
+        <item name="windowSplashScreenIconBackgroundColor">#EDEDEA</item>
+        <item name="postSplashScreenTheme">@style/Theme.Gymbro</item>
+    </style>
+</resources>

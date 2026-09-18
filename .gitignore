@@ -1,0 +1,75 @@
+# Build outputs
+build/
+**/build/
+out/
+dist/
+result
+result-*
+
+# Gradle
+.gradle/
+.gradle-home/
+gradle-app.setting
+
+# Kotlin
+.kotlin/
+*.kotlin_module
+
+# Android local state
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Android generated artifacts
+*.apk
+*.ap_
+*.aab
+*.aar
+*.dex
+*.class
+
+# Native/generated binaries
+*.so
+*.dylib
+*.dll
+
+# Signing and secrets
+*.jks
+*.keystore
+*.keystream
+*.key
+*.p12
+*.pem
+.secret*
+.env
+.env.*
+
+# JVM / crash artifacts
+hs_err_pid*
+replay_pid*
+java_pid*.hprof
+*.hprof
+
+# IDE/editor files
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Nix / direnv local state
+.direnv/
+
+# Local agent/worktree state
+.agents/
+.codex/
+.worktrees/
+worktrees/
