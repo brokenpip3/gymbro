@@ -110,6 +110,31 @@ class RoomGymbroBackupStoreTest {
         }
 
     @Test
+    fun mergeImportKeepsExistingCategoryAndImportsCategoryForNewExercises() =
+        runTest {
+            database
+                .exerciseDao()
+                .insertExercise(exercise(id = 0, name = "Bench Press").copy(category = "Push"))
+            val json =
+                backupText(
+                    scope = "exercises",
+                    exercises =
+                        listOf(
+                            backupExercise(id = 10, name = "Bench Press", category = "Chest"),
+                            backupExercise(id = 11, name = "Squat", category = "Legs"),
+                        ),
+                )
+
+            store.importText(json)
+
+            val exercises = database.exerciseDao().getAllExercises()
+            assertEquals(2, exercises.size)
+            // Existing exercise is matched by name + trackingMode and keeps its own category.
+            assertEquals("Push", exercises.first { it.name == "Bench Press" }.category)
+            assertEquals("Legs", exercises.first { it.name == "Squat" }.category)
+        }
+
+    @Test
     fun mergeImportValidationFailureLeavesDatabaseUnchanged() =
         runTest {
             val exerciseId = database.exerciseDao().insertExercise(exercise(id = 0, name = "Dips"))
@@ -381,6 +406,7 @@ private fun schedule(
 private fun backupExercise(
     id: Long,
     name: String,
+    category: String? = null,
 ): BackupExercise =
     BackupExercise(
         id = id,
@@ -389,6 +415,7 @@ private fun backupExercise(
         trackingMode = "strength",
         createdAt = 1,
         updatedAt = 1,
+        category = category,
     )
 
 private fun backupSchedule(

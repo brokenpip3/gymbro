@@ -218,6 +218,7 @@ private fun ExerciseEntity.toBackup(): BackupExercise =
         trackingMode = trackingMode,
         createdAt = createdAt,
         updatedAt = updatedAt,
+        category = category,
     )
 
 private fun BackupExercise.toEntity(): ExerciseEntity =
@@ -228,6 +229,7 @@ private fun BackupExercise.toEntity(): ExerciseEntity =
         trackingMode = trackingMode,
         createdAt = createdAt,
         updatedAt = updatedAt,
+        category = category,
     )
 
 private fun ScheduleEntity.toBackup(): BackupSchedule =

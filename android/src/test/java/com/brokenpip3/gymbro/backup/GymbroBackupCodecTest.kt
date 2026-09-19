@@ -1,6 +1,7 @@
 package com.brokenpip3.gymbro.backup
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -22,6 +23,52 @@ class GymbroBackupCodecTest {
         val decoded = GymbroBackupCodec.decode("""{ "schemaVersion": 1 }""")
 
         assertEquals(1, decoded.schemaVersion)
+    }
+
+    @Test
+    fun decodesLegacyExerciseWithoutCategoryFieldAsNull() {
+        val json =
+            """
+            {
+              "schemaVersion": 1,
+              "exercises": [
+                {"id": 1, "name": "Squat", "notes": null, "trackingMode": "strength", "createdAt": 1, "updatedAt": 2}
+              ],
+              "schedules": [],
+              "scheduleExercises": [],
+              "workoutRuns": [],
+              "exerciseResults": [],
+              "setResults": []
+            }
+            """.trimIndent()
+
+        val backup = GymbroBackupCodec.decode(json)
+
+        assertNull(backup.exercises.single().category)
+    }
+
+    @Test
+    fun roundTripsExerciseCategory() {
+        val backup =
+            GymbroBackup(
+                schemaVersion = 1,
+                exercises =
+                    listOf(
+                        BackupExercise(
+                            id = 1,
+                            name = "Squat",
+                            notes = null,
+                            category = "Legs",
+                            trackingMode = "strength",
+                            createdAt = 1,
+                            updatedAt = 2,
+                        ),
+                    ),
+            )
+
+        val decoded = GymbroBackupCodec.decode(GymbroBackupCodec.encode(backup))
+
+        assertEquals("Legs", decoded.exercises.single().category)
     }
 
     @Test
