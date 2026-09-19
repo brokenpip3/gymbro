@@ -56,6 +56,7 @@ fun ExercisesRoute(
     onCreateExercise: () -> Unit,
     onEditExercise: (Long) -> Unit,
     onOpenExerciseStats: (Long) -> Unit = {},
+    groupByCategory: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val viewModel: ExerciseListViewModel =
@@ -76,6 +77,7 @@ fun ExercisesRoute(
         onDeleteExercise = { exerciseId -> viewModel.deleteExercise(exerciseId) },
         onClearListError = viewModel::clearListError,
         listError = listError,
+        groupByCategory = groupByCategory,
         modifier = modifier,
     )
 }
@@ -103,6 +105,7 @@ fun ExercisesScreen(
     onClearListError: () -> Unit = {},
     modifier: Modifier = Modifier,
     listError: String? = null,
+    groupByCategory: Boolean = false,
 ) {
     var pendingDelete by remember { mutableStateOf<ExerciseListItem?>(null) }
 
@@ -145,6 +148,7 @@ fun ExercisesScreen(
             onRequestDelete = { exercise -> pendingDelete = exercise },
             onClearListError = onClearListError,
             listError = listError,
+            groupByCategory = groupByCategory,
             modifier = modifier,
         )
     }
@@ -178,6 +182,7 @@ private fun ExerciseList(
     onRequestDelete: (ExerciseListItem) -> Unit,
     onClearListError: () -> Unit,
     listError: String?,
+    groupByCategory: Boolean,
     modifier: Modifier = Modifier,
 ) {
     var searchQuery by remember { mutableStateOf("") }

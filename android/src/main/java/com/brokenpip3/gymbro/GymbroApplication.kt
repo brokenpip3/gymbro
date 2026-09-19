@@ -7,12 +7,18 @@ import com.brokenpip3.gymbro.data.GymbroDatabase
 import com.brokenpip3.gymbro.data.repositories.ExerciseRepository
 import com.brokenpip3.gymbro.data.repositories.ScheduleRepository
 import com.brokenpip3.gymbro.data.repositories.WorkoutRepository
+import com.brokenpip3.gymbro.ui.settings.ExerciseListSettings
+import com.brokenpip3.gymbro.ui.settings.SharedPreferencesExerciseListSettings
 import com.brokenpip3.gymbro.ui.theme.SharedPreferencesThemeSettings
 import com.brokenpip3.gymbro.ui.theme.ThemeSettings
 
 class GymbroApplication : Application() {
     val themeSettings: ThemeSettings by lazy {
         SharedPreferencesThemeSettings(this)
+    }
+
+    val exerciseListSettings: ExerciseListSettings by lazy {
+        SharedPreferencesExerciseListSettings(this)
     }
 
     val database: GymbroDatabase by lazy {

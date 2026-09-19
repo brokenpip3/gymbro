@@ -14,3 +14,12 @@ private fun SettingsScreenSignatureContract() {
         state = SettingsUiState(message = "Import complete"),
     )
 }
+
+@Composable
+private fun SettingsExercisesSectionContract() {
+    SettingsScreen(
+        state = SettingsUiState(),
+        groupByCategory = true,
+        onGroupByCategoryChange = {},
+    )
+}
