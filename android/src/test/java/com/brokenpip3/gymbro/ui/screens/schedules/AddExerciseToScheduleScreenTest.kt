@@ -19,6 +19,18 @@ class AddExerciseToScheduleScreenTest {
     }
 
     @Test
+    fun availableExerciseSearchMatchesCategoryIgnoringCase() {
+        val exercises =
+            listOf(
+                exercise(id = 1L, name = "Back Squat", category = "Push"),
+                exercise(id = 2L, name = "Tempo Run", category = null),
+            )
+
+        assertEquals(listOf(1L), filterAvailableExercises(exercises, "push").map { it.id })
+        assertEquals(emptyList<Long>(), filterAvailableExercises(exercises, "leg").map { it.id })
+    }
+
+    @Test
     fun blankAvailableExerciseSearchKeepsExistingOrder() {
         val exercises = listOf(exercise(id = 2L, name = "Tempo Run"), exercise(id = 1L, name = "Back Squat"))
 
@@ -39,11 +51,13 @@ private fun exercise(
     id: Long,
     name: String,
     notes: String? = null,
+    category: String? = null,
 ): ExerciseEntity =
     ExerciseEntity(
         id = id,
         name = name,
         notes = notes,
+        category = category,
         trackingMode = TrackingMode.Strength.databaseValue,
         createdAt = 0L,
         updatedAt = 0L,

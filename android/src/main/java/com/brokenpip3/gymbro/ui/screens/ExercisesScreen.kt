@@ -337,7 +337,8 @@ internal fun filterExerciseRows(
 
     return rows.filter { row ->
         row.exercise.name.contains(normalizedQuery, ignoreCase = true) ||
-            row.exercise.notes?.contains(normalizedQuery, ignoreCase = true) == true
+            row.exercise.notes?.contains(normalizedQuery, ignoreCase = true) == true ||
+            row.exercise.category?.contains(normalizedQuery, ignoreCase = true) == true
     }
 }
 

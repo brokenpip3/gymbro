@@ -92,6 +92,18 @@ class ExercisesScreenContractTest {
     }
 
     @Test
+    fun exerciseSearchMatchesCategoryIgnoringCase() {
+        val rows =
+            listOf(
+                exerciseRow(id = 1L, name = "Back Squat", category = "Push"),
+                exerciseRow(id = 2L, name = "Tempo Run", category = "Cardio"),
+            )
+
+        assertEquals(listOf(1L), filterExerciseRows(rows, "push").map { row -> row.exercise.id })
+        assertEquals(listOf(2L), filterExerciseRows(rows, "CARDIO").map { row -> row.exercise.id })
+    }
+
+    @Test
     fun blankExerciseSearchKeepsExistingOrder() {
         val rows =
             listOf(
@@ -107,6 +119,7 @@ private fun exerciseRow(
     id: Long,
     name: String,
     notes: String? = null,
+    category: String? = null,
 ): ExerciseListItem =
     ExerciseListItem(
         exercise =
@@ -114,6 +127,7 @@ private fun exerciseRow(
                 id = id,
                 name = name,
                 notes = notes,
+                category = category,
                 trackingMode = TrackingMode.Strength.databaseValue,
                 createdAt = 0L,
                 updatedAt = 0L,

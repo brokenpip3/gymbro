@@ -176,7 +176,8 @@ internal fun filterAvailableExercises(
 
     return exercises.filter { exercise ->
         exercise.name.contains(normalizedQuery, ignoreCase = true) ||
-            exercise.notes?.contains(normalizedQuery, ignoreCase = true) == true
+            exercise.notes?.contains(normalizedQuery, ignoreCase = true) == true ||
+            exercise.category?.contains(normalizedQuery, ignoreCase = true) == true
     }
 }
 
