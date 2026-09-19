@@ -124,6 +124,7 @@ private class ContractExerciseRepository : ExerciseCreator {
     override suspend fun createExercise(
         name: String,
         notes: String?,
+        category: String?,
         trackingMode: String,
         nowMillis: Long,
     ): Long = 1L
@@ -134,6 +135,7 @@ private class ContractExerciseRepository : ExerciseCreator {
         id: Long,
         name: String,
         notes: String?,
+        category: String?,
         trackingMode: String,
         nowMillis: Long,
     ) = Unit

@@ -29,6 +29,7 @@ class ExerciseRepositoryTest {
                 repository.createExercise(
                     name = "Squat",
                     notes = "Low bar",
+                    category = null,
                     trackingMode = "strength",
                     nowMillis = 1234,
                 )
@@ -67,6 +68,7 @@ class ExerciseRepositoryTest {
                 id = 7,
                 name = "Front Squat",
                 notes = null,
+                category = null,
                 trackingMode = "strength",
                 nowMillis = 300,
             )
@@ -82,6 +84,54 @@ class ExerciseRepositoryTest {
                 ),
                 dao.updatedExercise,
             )
+        }
+
+    @Test
+    fun createExerciseStoresCategory() =
+        runTest {
+            val dao = FakeExerciseDao(insertId = 1)
+            val repository = ExerciseRepository(dao)
+
+            repository.createExercise(
+                name = "Squat",
+                notes = null,
+                category = "Legs",
+                trackingMode = "strength",
+                nowMillis = 1234,
+            )
+
+            assertEquals("Legs", dao.insertedExercise?.category)
+        }
+
+    @Test
+    fun updateExerciseStoresCategoryAndKeepsCreatedAt() =
+        runTest {
+            val dao =
+                FakeExerciseDao(
+                    exercise =
+                        ExerciseEntity(
+                            id = 7,
+                            name = "Squat",
+                            notes = null,
+                            category = "Legs",
+                            trackingMode = "strength",
+                            createdAt = 100,
+                            updatedAt = 200,
+                        ),
+                )
+            val repository = ExerciseRepository(dao)
+
+            repository.updateExercise(
+                id = 7,
+                name = "Squat",
+                notes = null,
+                category = "Lower body",
+                trackingMode = "strength",
+                nowMillis = 300,
+            )
+
+            assertEquals("Lower body", dao.updatedExercise?.category)
+            assertEquals(100L, dao.updatedExercise?.createdAt)
         }
 
     @Test
@@ -121,6 +171,7 @@ class ExerciseRepositoryTest {
                         id = 404,
                         name = "Missing",
                         notes = null,
+                        category = null,
                         trackingMode = "strength",
                         nowMillis = 500,
                     )

@@ -33,6 +33,7 @@ interface ExerciseCreator {
     suspend fun createExercise(
         name: String,
         notes: String?,
+        category: String?,
         trackingMode: String,
         nowMillis: Long,
     ): Long
@@ -41,6 +42,7 @@ interface ExerciseCreator {
         id: Long,
         name: String,
         notes: String?,
+        category: String?,
         trackingMode: String,
         nowMillis: Long,
     )
@@ -175,6 +177,7 @@ class ExerciseListViewModel(
                     repository.createExercise(
                         name = trimmedName,
                         notes = trimmedNotes,
+                        category = null,
                         trackingMode = state.trackingMode.databaseValue,
                         nowMillis = now,
                     )
@@ -183,6 +186,7 @@ class ExerciseListViewModel(
                         id = exerciseId,
                         name = trimmedName,
                         notes = trimmedNotes,
+                        category = null,
                         trackingMode = state.trackingMode.databaseValue,
                         nowMillis = now,
                     )

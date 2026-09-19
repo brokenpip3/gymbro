@@ -247,6 +247,8 @@ private class FakeExerciseRepository(
         private set
     var createdNotes: String? = null
         private set
+    var createdCategory: String? = null
+        private set
     var createdTrackingMode: String? = null
         private set
     var createdNowMillis: Long? = null
@@ -258,6 +260,8 @@ private class FakeExerciseRepository(
     var updatedName: String? = null
         private set
     var updatedNotes: String? = null
+        private set
+    var updatedCategory: String? = null
         private set
     var updatedTrackingMode: String? = null
         private set
@@ -271,12 +275,14 @@ private class FakeExerciseRepository(
     override suspend fun createExercise(
         name: String,
         notes: String?,
+        category: String?,
         trackingMode: String,
         nowMillis: Long,
     ): Long {
         createCount += 1
         createdName = name
         createdNotes = notes
+        createdCategory = category
         createdTrackingMode = trackingMode
         createdNowMillis = nowMillis
         return 1L
@@ -291,6 +297,7 @@ private class FakeExerciseRepository(
         id: Long,
         name: String,
         notes: String?,
+        category: String?,
         trackingMode: String,
         nowMillis: Long,
     ) {
@@ -298,6 +305,7 @@ private class FakeExerciseRepository(
         updatedExerciseId = id
         updatedName = name
         updatedNotes = notes
+        updatedCategory = category
         updatedTrackingMode = trackingMode
         updatedNowMillis = nowMillis
     }

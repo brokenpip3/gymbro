@@ -22,6 +22,7 @@ class ExerciseRepository(
     override suspend fun createExercise(
         name: String,
         notes: String?,
+        category: String?,
         trackingMode: String,
         nowMillis: Long,
     ): Long =
@@ -29,6 +30,7 @@ class ExerciseRepository(
             ExerciseEntity(
                 name = name,
                 notes = notes,
+                category = category,
                 trackingMode = trackingMode,
                 createdAt = nowMillis,
                 updatedAt = nowMillis,
@@ -41,6 +43,7 @@ class ExerciseRepository(
         id: Long,
         name: String,
         notes: String?,
+        category: String?,
         trackingMode: String,
         nowMillis: Long,
     ) {
@@ -51,6 +54,7 @@ class ExerciseRepository(
             exercise.copy(
                 name = name,
                 notes = notes,
+                category = category,
                 trackingMode = trackingMode,
                 updatedAt = nowMillis,
             ),
