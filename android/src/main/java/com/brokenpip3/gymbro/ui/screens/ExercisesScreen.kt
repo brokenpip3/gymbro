@@ -38,6 +38,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.brokenpip3.gymbro.data.entities.ExerciseEntity
 import com.brokenpip3.gymbro.domain.TrackingMode
 import com.brokenpip3.gymbro.ui.components.EmptyState
+import com.brokenpip3.gymbro.ui.components.CategoryChip
 import com.brokenpip3.gymbro.ui.components.GymbroIcons
 import com.brokenpip3.gymbro.ui.components.GymbroListTextRole
 import com.brokenpip3.gymbro.ui.components.color
@@ -280,6 +281,9 @@ private fun ExerciseListItemRow(
             },
             supportingContent = {
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    row.exercise.category?.let { category ->
+                        CategoryChip(category = category)
+                    }
                     Text(
                         text = row.exercise.trackingModeLabel,
                         style = MaterialTheme.typography.labelMedium,

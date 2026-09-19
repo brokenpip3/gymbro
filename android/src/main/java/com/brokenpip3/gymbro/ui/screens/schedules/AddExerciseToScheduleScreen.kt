@@ -1,6 +1,7 @@
 package com.brokenpip3.gymbro.ui.screens.schedules
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,6 +28,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.brokenpip3.gymbro.data.entities.ExerciseEntity
+import com.brokenpip3.gymbro.ui.components.CategoryChip
 import com.brokenpip3.gymbro.ui.components.EmptyState
 import com.brokenpip3.gymbro.ui.components.GymbroIcons
 import com.brokenpip3.gymbro.ui.rememberKeyboardDismissal
@@ -193,13 +195,18 @@ private fun AddExerciseRow(
     ListItem(
         headlineContent = { Text(text = exercise.name) },
         supportingContent = {
-            Text(
-                text =
-                    buildString {
-                        append(exercise.trackingModeLabel)
-                        selectionOrder?.let { order -> append(" · Selected $order") }
-                    },
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                exercise.category?.let { category ->
+                    CategoryChip(category = category)
+                }
+                Text(
+                    text =
+                        buildString {
+                            append(exercise.trackingModeLabel)
+                            selectionOrder?.let { order -> append(" · Selected $order") }
+                        },
+                )
+            }
         },
         leadingContent = {
             Checkbox(
