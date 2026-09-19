@@ -9,6 +9,7 @@ data class ExerciseEntity(
     val id: Long = 0,
     val name: String,
     val notes: String?,
+    val category: String? = null,
     val trackingMode: String,
     val createdAt: Long,
     val updatedAt: Long,
