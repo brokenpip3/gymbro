@@ -103,6 +103,12 @@ class ExerciseListViewModel(
         }
     }
 
+    fun updateCategory(value: String) {
+        _formState.update { state ->
+            state.copy(category = value)
+        }
+    }
+
     fun updateTrackingMode(value: TrackingMode) {
         _formState.update { state ->
             state.copy(trackingMode = value)
@@ -132,6 +138,7 @@ class ExerciseListViewModel(
                     ExerciseFormState(
                         name = exercise.name,
                         notes = exercise.notes.orEmpty(),
+                        category = exercise.category.orEmpty(),
                         trackingMode = trackingModeFromDatabaseValue(exercise.trackingMode),
                         isLoading = false,
                     )
@@ -165,6 +172,7 @@ class ExerciseListViewModel(
         }
 
         val trimmedNotes = state.notes.trim().ifBlank { null }
+        val trimmedCategory = state.category.trim().ifBlank { null }
 
         _formState.update {
             it.copy(isSaving = true, nameError = null, saveError = null)
@@ -177,7 +185,7 @@ class ExerciseListViewModel(
                     repository.createExercise(
                         name = trimmedName,
                         notes = trimmedNotes,
-                        category = null,
+                        category = trimmedCategory,
                         trackingMode = state.trackingMode.databaseValue,
                         nowMillis = now,
                     )
@@ -186,7 +194,7 @@ class ExerciseListViewModel(
                         id = exerciseId,
                         name = trimmedName,
                         notes = trimmedNotes,
-                        category = null,
+                        category = trimmedCategory,
                         trackingMode = state.trackingMode.databaseValue,
                         nowMillis = now,
                     )

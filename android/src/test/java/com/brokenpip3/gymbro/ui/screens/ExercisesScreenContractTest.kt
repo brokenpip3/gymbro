@@ -66,11 +66,13 @@ private fun ExerciseEditFormContract() {
             ExerciseFormState(
                 name = "Bench Press",
                 notes = "Pause on chest",
+                category = "Push",
                 trackingMode = TrackingMode.Strength,
                 saveError = "Unable to save exercise",
             ),
         onNameChange = {},
         onNotesChange = {},
+        onCategoryChange = {},
         onTrackingModeChange = {},
         onSave = {},
     )

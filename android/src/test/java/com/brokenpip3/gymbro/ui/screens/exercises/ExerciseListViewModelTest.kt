@@ -197,6 +197,72 @@ class ExerciseListViewModelTest {
         }
 
     @Test
+    fun saveExerciseTrimsCategoryAndSendsBlankAsNull() =
+        runTest {
+            val repository = FakeExerciseRepository()
+            var onSavedCalled = false
+            val viewModel =
+                ExerciseListViewModel(
+                    repository = repository,
+                    nowMillis = { 5678L },
+                    coroutineScope = backgroundScope,
+                )
+
+            viewModel.updateName("Bench Press")
+            viewModel.updateCategory("  Push  ")
+            viewModel.saveExercise(onSaved = { onSavedCalled = true })
+
+            assertEquals("Push", repository.createdCategory)
+            assertTrue(onSavedCalled)
+        }
+
+    @Test
+    fun blankCategoryIsClearedToNullOnSave() =
+        runTest {
+            val repository = FakeExerciseRepository()
+            val viewModel =
+                ExerciseListViewModel(
+                    repository = repository,
+                    nowMillis = { 5678L },
+                    coroutineScope = backgroundScope,
+                )
+
+            viewModel.updateName("Bench Press")
+            viewModel.updateCategory("   ")
+            viewModel.saveExercise(onSaved = {})
+
+            assertEquals(null, repository.createdCategory)
+        }
+
+    @Test
+    fun loadExerciseForEditPopulatesCategory() =
+        runTest {
+            val repository =
+                FakeExerciseRepository(
+                    exercise =
+                        ExerciseEntity(
+                            id = 4,
+                            name = "Tempo Run",
+                            notes = null,
+                            category = "Cardio",
+                            trackingMode = "timed",
+                            createdAt = 1,
+                            updatedAt = 2,
+                        ),
+                )
+            val viewModel =
+                ExerciseListViewModel(
+                    repository = repository,
+                    coroutineScope = backgroundScope,
+                )
+
+            viewModel.loadExerciseForEdit(4)
+            advanceUntilIdle()
+
+            assertEquals("Cardio", viewModel.formState.value.category)
+        }
+
+    @Test
     fun missingExerciseOnLoadShowsExerciseNotFound() =
         runTest {
             val repository = FakeExerciseRepository()
