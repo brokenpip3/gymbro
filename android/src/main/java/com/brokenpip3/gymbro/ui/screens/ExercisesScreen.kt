@@ -37,8 +37,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.brokenpip3.gymbro.data.entities.ExerciseEntity
 import com.brokenpip3.gymbro.domain.TrackingMode
-import com.brokenpip3.gymbro.ui.components.EmptyState
 import com.brokenpip3.gymbro.ui.components.CategoryChip
+import com.brokenpip3.gymbro.ui.components.EmptyState
 import com.brokenpip3.gymbro.ui.components.GymbroIcons
 import com.brokenpip3.gymbro.ui.components.GymbroListTextRole
 import com.brokenpip3.gymbro.ui.components.color
@@ -96,6 +96,7 @@ internal class ExerciseListViewModelFactory(
 }
 
 @Composable
+@Suppress("LongParameterList")
 fun ExercisesScreen(
     exercises: List<ExerciseListItem>,
     onCreateExercise: () -> Unit,
@@ -174,6 +175,7 @@ private fun ExerciseEmptyState(
 }
 
 @Composable
+@Suppress("LongParameterList")
 private fun ExerciseList(
     exercises: List<ExerciseListItem>,
     onCreateExercise: () -> Unit,
@@ -248,18 +250,90 @@ private fun ExerciseList(
             }
         }
 
+        val listEntries = buildExerciseListEntries(visibleExercises, groupByCategory)
         items(
-            items = visibleExercises,
-            key = { row -> row.exercise.id },
-        ) { row ->
-            ExerciseListItemRow(
-                row = row,
-                onEditExercise = onEditExercise,
-                onOpenExerciseStats = onOpenExerciseStats,
-                onRequestDelete = onRequestDelete,
-            )
+            items = listEntries,
+            key = { entry ->
+                when (entry) {
+                    is ExerciseListEntry.Header -> "header:${entry.label.lowercase()}"
+                    is ExerciseListEntry.Row -> entry.row.exercise.id
+                }
+            },
+        ) { entry ->
+            when (entry) {
+                is ExerciseListEntry.Header -> ExerciseGroupHeader(label = entry.label)
+                is ExerciseListEntry.Row ->
+                    ExerciseListItemRow(
+                        row = entry.row,
+                        onEditExercise = onEditExercise,
+                        onOpenExerciseStats = onOpenExerciseStats,
+                        onRequestDelete = onRequestDelete,
+                    )
+            }
         }
     }
+}
+
+internal const val UNCATEGORIZED_GROUP_LABEL = "Uncategorized"
+
+internal sealed interface ExerciseListEntry {
+    data class Header(
+        val label: String,
+    ) : ExerciseListEntry
+
+    data class Row(
+        val row: ExerciseListItem,
+    ) : ExerciseListEntry
+}
+
+internal fun buildExerciseListEntries(
+    rows: List<ExerciseListItem>,
+    groupByCategory: Boolean,
+): List<ExerciseListEntry> {
+    if (!groupByCategory) {
+        return rows.map { row -> ExerciseListEntry.Row(row) }
+    }
+
+    fun normalizedCategory(row: ExerciseListItem): String? {
+        val trimmed = row.exercise.category?.trim() ?: return null
+        return trimmed.ifBlank { null }
+    }
+
+    val spellingsByKey =
+        rows
+            .mapNotNull(::normalizedCategory)
+            .groupBy { it.lowercase() }
+            .mapValues { (_, variants) -> variants.min() }
+    val entries = mutableListOf<ExerciseListEntry>()
+    spellingsByKey.keys.sorted().forEach { key ->
+        entries += ExerciseListEntry.Header(spellingsByKey.getValue(key))
+        rows
+            .filter { row -> normalizedCategory(row)?.lowercase() == key }
+            .sortedBy { row -> row.exercise.name.lowercase() }
+            .forEach { row -> entries += ExerciseListEntry.Row(row) }
+    }
+    val uncategorized = rows.filter { row -> normalizedCategory(row) == null }
+    if (uncategorized.isNotEmpty()) {
+        entries += ExerciseListEntry.Header(UNCATEGORIZED_GROUP_LABEL)
+        uncategorized
+            .sortedBy { row -> row.exercise.name.lowercase() }
+            .forEach { row -> entries += ExerciseListEntry.Row(row) }
+    }
+    return entries
+}
+
+@Composable
+private fun ExerciseGroupHeader(
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.secondary,
+        modifier = modifier.padding(top = 8.dp),
+    )
 }
 
 @Composable

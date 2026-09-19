@@ -4,7 +4,6 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -22,7 +21,8 @@ class GymbroDatabaseMigrationTest {
         val migratedDatabase = database.openHelper.writableDatabase
 
         assertEquals(3, migratedDatabase.version)
-        migratedDatabase.query("SELECT reps, isCompleted FROM set_results WHERE id = 1").use { cursor ->            assertTrue(cursor.moveToFirst())
+        migratedDatabase.query("SELECT reps, isCompleted FROM set_results WHERE id = 1").use { cursor ->
+            assertTrue(cursor.moveToFirst())
             assertEquals(8, cursor.getInt(cursor.getColumnIndexOrThrow("reps")))
             assertEquals(1, cursor.getInt(cursor.getColumnIndexOrThrow("isCompleted")))
         }
@@ -72,12 +72,14 @@ class GymbroDatabaseMigrationTest {
         val migratedDatabase = database.openHelper.writableDatabase
 
         assertEquals(3, migratedDatabase.version)
-        migratedDatabase.query("SELECT name, notes, category FROM exercises ORDER BY id").use { cursor ->
-            assertTrue(cursor.moveToFirst())
-            assertEquals("Bench Press", cursor.getString(cursor.getColumnIndexOrThrow("name")))
-            assertEquals("pause", cursor.getString(cursor.getColumnIndexOrThrow("notes")))
-            assertTrue(cursor.isNull(cursor.getColumnIndexOrThrow("category")))
-        }
+        migratedDatabase
+            .query("SELECT name, notes, category FROM exercises ORDER BY id")
+            .use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("Bench Press", cursor.getString(cursor.getColumnIndexOrThrow("name")))
+                assertEquals("pause", cursor.getString(cursor.getColumnIndexOrThrow("notes")))
+                assertTrue(cursor.isNull(cursor.getColumnIndexOrThrow("category")))
+            }
 
         database.close()
         databaseFile.delete()

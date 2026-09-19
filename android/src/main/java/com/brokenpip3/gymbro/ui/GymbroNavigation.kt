@@ -26,8 +26,8 @@ import com.brokenpip3.gymbro.ui.screens.schedules.ScheduleDetailRoute
 import com.brokenpip3.gymbro.ui.screens.schedules.ScheduleDetailSource
 import com.brokenpip3.gymbro.ui.screens.schedules.WorkoutStarter
 import com.brokenpip3.gymbro.ui.screens.workout.ActiveWorkoutSource
-import com.brokenpip3.gymbro.ui.settings.ExerciseListSettings
 import com.brokenpip3.gymbro.ui.screens.workout.WorkoutRoute
+import com.brokenpip3.gymbro.ui.settings.ExerciseListSettings
 import com.brokenpip3.gymbro.ui.theme.ThemeSettings
 
 const val CREATE_SCHEDULE_ROUTE = "schedules/create"

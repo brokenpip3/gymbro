@@ -50,6 +50,7 @@ interface ExerciseCreator {
     suspend fun deleteExercise(id: Long)
 }
 
+@Suppress("TooManyFunctions")
 class ExerciseListViewModel(
     private val repository: ExerciseCreator,
     private val nowMillis: () -> Long = { System.currentTimeMillis() },

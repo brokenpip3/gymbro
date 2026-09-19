@@ -104,6 +104,65 @@ class ExercisesScreenContractTest {
     }
 
     @Test
+    fun groupingDisabledKeepsFlatRowOrder() {
+        val rows =
+            listOf(
+                exerciseRow(id = 1L, name = "A", category = "Push"),
+                exerciseRow(id = 2L, name = "B", category = null),
+            )
+
+        assertEquals(
+            listOf(
+                ExerciseListEntry.Row(rows[0]),
+                ExerciseListEntry.Row(rows[1]),
+            ),
+            buildExerciseListEntries(rows, groupByCategory = false),
+        )
+    }
+
+    @Test
+    fun groupingSortsCategoriesAlphabeticallyWithUncategorizedLast() {
+        val rows =
+            listOf(
+                exerciseRow(id = 1L, name = "Squat", category = "legs"),
+                exerciseRow(id = 2L, name = "Bench", category = "Push"),
+                exerciseRow(id = 3L, name = "Run", category = null),
+                exerciseRow(id = 4L, name = "Lat Pull", category = "Legs"),
+            )
+
+        assertEquals(
+            listOf(
+                ExerciseListEntry.Header("Legs"),
+                ExerciseListEntry.Row(rows[3]),
+                ExerciseListEntry.Row(rows[0]),
+                ExerciseListEntry.Header("Push"),
+                ExerciseListEntry.Row(rows[1]),
+                ExerciseListEntry.Header(UNCATEGORIZED_GROUP_LABEL),
+                ExerciseListEntry.Row(rows[2]),
+            ),
+            buildExerciseListEntries(rows, groupByCategory = true),
+        )
+    }
+
+    @Test
+    fun groupingPreservesNameOrderWithinCategory() {
+        val rows =
+            listOf(
+                exerciseRow(id = 1L, name = "Cable Fly", category = "Push"),
+                exerciseRow(id = 2L, name = "Bench", category = "Push"),
+            )
+
+        assertEquals(
+            listOf(
+                ExerciseListEntry.Header("Push"),
+                ExerciseListEntry.Row(rows[1]),
+                ExerciseListEntry.Row(rows[0]),
+            ),
+            buildExerciseListEntries(rows, groupByCategory = true),
+        )
+    }
+
+    @Test
     fun blankExerciseSearchKeepsExistingOrder() {
         val rows =
             listOf(
