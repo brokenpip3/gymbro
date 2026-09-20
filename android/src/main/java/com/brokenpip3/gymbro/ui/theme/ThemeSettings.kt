@@ -10,6 +10,7 @@ interface ThemeSettings {
     val themePalette: StateFlow<ThemePalette>
 
     fun setThemeMode(themeMode: ThemeMode)
+
     fun setThemePalette(themePalette: ThemePalette)
 }
 
