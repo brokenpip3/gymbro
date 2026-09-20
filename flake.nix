@@ -62,7 +62,7 @@
                   gnumake
                   gradle
                 ]
-                ++ pkgs.lib.optional includeJdk jdk17
+                ++ pkgs.lib.optional includeJdk jdk21
                 ++ pkgs.lib.optional includeSdk sdk
                 ++ extraInputs;
 
@@ -109,7 +109,7 @@
                 ''}
               '';
             }
-            // pkgs.lib.optionalAttrs includeJdk { JAVA_HOME = pkgs.jdk17.home; }
+            // pkgs.lib.optionalAttrs includeJdk { JAVA_HOME = pkgs.jdk21.home; }
             // pkgs.lib.optionalAttrs includeSdk {
               ANDROID_HOME = "${sdk}/libexec/android-sdk";
               ANDROID_SDK_ROOT = "${sdk}/libexec/android-sdk";
