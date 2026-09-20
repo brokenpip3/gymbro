@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -25,6 +26,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -51,7 +53,9 @@ import com.brokenpip3.gymbro.backup.GymbroBackupFileStore
 import com.brokenpip3.gymbro.backup.GymbroBackupStore
 import com.brokenpip3.gymbro.backup.InvalidBackupException
 import com.brokenpip3.gymbro.data.demo.DemoDataSeeder
+import com.brokenpip3.gymbro.ui.settings.ExerciseListSettings
 import com.brokenpip3.gymbro.ui.theme.ThemeMode
+import com.brokenpip3.gymbro.ui.theme.ThemePalette
 import com.brokenpip3.gymbro.ui.theme.ThemeSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -215,6 +219,7 @@ class SettingsViewModel(
 fun SettingsRoute(
     backupStore: GymbroBackupStore,
     themeSettings: ThemeSettings,
+    exerciseListSettings: ExerciseListSettings,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -235,6 +240,8 @@ fun SettingsRoute(
         )
     val state by viewModel.uiState.collectAsState()
     val themeMode by themeSettings.themeMode.collectAsState()
+    val themePalette by themeSettings.themePalette.collectAsState()
+    val groupByCategory by exerciseListSettings.groupExercisesByCategory.collectAsState()
 
     val exportFileLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -249,6 +256,10 @@ fun SettingsRoute(
         state = state,
         themeMode = themeMode,
         onThemeModeSelected = themeSettings::setThemeMode,
+        themePalette = themePalette,
+        onThemePaletteSelected = themeSettings::setThemePalette,
+        groupByCategory = groupByCategory,
+        onGroupByCategoryChange = exerciseListSettings::setGroupExercisesByCategory,
         onConfirmFileImport = viewModel::confirmFileImport,
         onDismissFileImportConfirmation = viewModel::dismissFileImportConfirmation,
         onExportFileScopeClick = { scope ->
@@ -267,6 +278,10 @@ fun SettingsScreen(
     state: SettingsUiState,
     themeMode: ThemeMode = ThemeMode.System,
     onThemeModeSelected: (ThemeMode) -> Unit = {},
+    themePalette: ThemePalette = ThemePalette.Forest,
+    onThemePaletteSelected: (ThemePalette) -> Unit = {},
+    groupByCategory: Boolean = false,
+    onGroupByCategoryChange: (Boolean) -> Unit = {},
     onConfirmFileImport: () -> Unit = {},
     onDismissFileImportConfirmation: () -> Unit = {},
     onExportFileScopeClick: (BackupScope) -> Unit = {},
@@ -315,6 +330,12 @@ fun SettingsScreen(
             SettingsAppearanceSection(
                 themeMode = themeMode,
                 onThemeModeSelected = onThemeModeSelected,
+                themePalette = themePalette,
+                onThemePaletteSelected = onThemePaletteSelected,
+            )
+            SettingsExercisesSection(
+                groupByCategory = groupByCategory,
+                onGroupByCategoryChange = onGroupByCategoryChange,
             )
             onLoadDemoData?.let { loadDemoData ->
                 SettingsDemoDataSection(
@@ -402,6 +423,8 @@ private fun SettingsAboutSection(onSourceCodeClick: (String) -> Unit) {
 private fun SettingsAppearanceSection(
     themeMode: ThemeMode,
     onThemeModeSelected: (ThemeMode) -> Unit,
+    themePalette: ThemePalette,
+    onThemePaletteSelected: (ThemePalette) -> Unit,
 ) {
     SettingsSectionTitle(text = "Appearance")
     Text(
@@ -423,6 +446,49 @@ private fun SettingsAppearanceSection(
                 Text(text = mode.label)
             }
         }
+    }
+    Text(
+        text = "Colors",
+        style = MaterialTheme.typography.bodyMedium,
+        modifier = Modifier.padding(top = 12.dp),
+    )
+    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+        ThemePalette.entries.forEachIndexed { index, palette ->
+            SegmentedButton(
+                selected = palette == themePalette,
+                onClick = { onThemePaletteSelected(palette) },
+                shape =
+                    SegmentedButtonDefaults.itemShape(
+                        index = index,
+                        count = ThemePalette.entries.size,
+                    ),
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(text = palette.label)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsExercisesSection(
+    groupByCategory: Boolean,
+    onGroupByCategoryChange: (Boolean) -> Unit,
+) {
+    SettingsSectionTitle(text = "Exercises")
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "Group exercises by category",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Switch(
+            checked = groupByCategory,
+            onCheckedChange = onGroupByCategoryChange,
+        )
     }
 }
 

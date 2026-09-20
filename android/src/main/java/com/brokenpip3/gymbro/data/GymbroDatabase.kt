@@ -45,6 +45,15 @@ internal val MIGRATION_1_2 =
         }
     }
 
+internal val MIGRATION_2_3 =
+    object : Migration(2, 3) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            if (!db.hasColumn("exercises", "category")) {
+                db.execSQL("ALTER TABLE exercises ADD COLUMN category TEXT")
+            }
+        }
+    }
+
 @Database(
     entities = [
         ExerciseEntity::class,
@@ -54,7 +63,7 @@ internal val MIGRATION_1_2 =
         ExerciseResultEntity::class,
         SetResultEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class GymbroDatabase : RoomDatabase() {
@@ -71,7 +80,7 @@ abstract class GymbroDatabase : RoomDatabase() {
                     context.applicationContext,
                     GymbroDatabase::class.java,
                     "gymbro.db",
-                ).addMigrations(MIGRATION_1_2)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
     }
 }

@@ -5,6 +5,7 @@ import com.brokenpip3.gymbro.domain.TrackingMode
 data class ExerciseFormState(
     val name: String = "",
     val notes: String = "",
+    val category: String = "",
     val trackingMode: TrackingMode = TrackingMode.Strength,
     val nameError: String? = null,
     val saveError: String? = null,

@@ -20,7 +20,7 @@ class GymbroDatabaseMigrationTest {
         val database = openMigratedDatabase(databaseFile)
         val migratedDatabase = database.openHelper.writableDatabase
 
-        assertEquals(2, migratedDatabase.version)
+        assertEquals(3, migratedDatabase.version)
         migratedDatabase.query("SELECT reps, isCompleted FROM set_results WHERE id = 1").use { cursor ->
             assertTrue(cursor.moveToFirst())
             assertEquals(8, cursor.getInt(cursor.getColumnIndexOrThrow("reps")))
@@ -39,7 +39,7 @@ class GymbroDatabaseMigrationTest {
         val database = openMigratedDatabase(databaseFile)
         val migratedDatabase = database.openHelper.writableDatabase
 
-        assertEquals(2, migratedDatabase.version)
+        assertEquals(3, migratedDatabase.version)
         migratedDatabase
             .query(
                 "SELECT setOrder, isCompleted FROM set_results WHERE exerciseResultId = 2 ORDER BY id",
@@ -58,13 +58,40 @@ class GymbroDatabaseMigrationTest {
         databaseFile.delete()
     }
 
+    @Test
+    fun versionOneSchemaMigratesToVersionThreePreservingExercises() {
+        val databaseFile = createVersionOneDatabase(legacySchema = false)
+        SQLiteDatabase.openOrCreateDatabase(databaseFile, null).use { database ->
+            database.execSQL(
+                "INSERT INTO exercises (name, notes, trackingMode, createdAt, updatedAt) " +
+                    "VALUES ('Bench Press', 'pause', 'strength', 10, 10)",
+            )
+        }
+
+        val database = openMigratedDatabase(databaseFile)
+        val migratedDatabase = database.openHelper.writableDatabase
+
+        assertEquals(3, migratedDatabase.version)
+        migratedDatabase
+            .query("SELECT name, notes, category FROM exercises ORDER BY id")
+            .use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals("Bench Press", cursor.getString(cursor.getColumnIndexOrThrow("name")))
+                assertEquals("pause", cursor.getString(cursor.getColumnIndexOrThrow("notes")))
+                assertTrue(cursor.isNull(cursor.getColumnIndexOrThrow("category")))
+            }
+
+        database.close()
+        databaseFile.delete()
+    }
+
     private fun openMigratedDatabase(databaseFile: File): GymbroDatabase =
         Room
             .databaseBuilder(
                 RuntimeEnvironment.getApplication() as Context,
                 GymbroDatabase::class.java,
                 databaseFile.path,
-            ).addMigrations(MIGRATION_1_2)
+            ).addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .build()
 
     private fun assertHasSetOrderIndex(database: androidx.sqlite.db.SupportSQLiteDatabase) {

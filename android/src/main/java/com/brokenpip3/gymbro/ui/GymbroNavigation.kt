@@ -4,6 +4,8 @@ package com.brokenpip3.gymbro.ui
 
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
@@ -25,6 +27,7 @@ import com.brokenpip3.gymbro.ui.screens.schedules.ScheduleDetailSource
 import com.brokenpip3.gymbro.ui.screens.schedules.WorkoutStarter
 import com.brokenpip3.gymbro.ui.screens.workout.ActiveWorkoutSource
 import com.brokenpip3.gymbro.ui.screens.workout.WorkoutRoute
+import com.brokenpip3.gymbro.ui.settings.ExerciseListSettings
 import com.brokenpip3.gymbro.ui.theme.ThemeSettings
 
 const val CREATE_SCHEDULE_ROUTE = "schedules/create"
@@ -136,6 +139,7 @@ fun GymbroNavigation(
     resultsSource: ResultsSource,
     backupStore: GymbroBackupStore,
     themeSettings: ThemeSettings,
+    exerciseListSettings: ExerciseListSettings,
     modifier: Modifier = Modifier,
 ) {
     NavHost(
@@ -230,8 +234,10 @@ fun GymbroNavigation(
             }
         }
         composable(GymbroDestination.Exercises.route) {
+            val groupByCategory by exerciseListSettings.groupExercisesByCategory.collectAsState()
             ExercisesRoute(
                 repository = exerciseRepository,
+                groupByCategory = groupByCategory,
                 onCreateExercise = { navController.navigate(CREATE_EXERCISE_ROUTE) },
                 onEditExercise = { exerciseId -> navController.navigate(editExerciseRoute(exerciseId)) },
                 onOpenExerciseStats = { exerciseId -> navController.navigate(exerciseStatsRoute(exerciseId)) },
@@ -306,6 +312,7 @@ fun GymbroNavigation(
             SettingsRoute(
                 backupStore = backupStore,
                 themeSettings = themeSettings,
+                exerciseListSettings = exerciseListSettings,
             )
         }
     }

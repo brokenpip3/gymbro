@@ -197,6 +197,72 @@ class ExerciseListViewModelTest {
         }
 
     @Test
+    fun saveExerciseTrimsCategoryAndSendsBlankAsNull() =
+        runTest {
+            val repository = FakeExerciseRepository()
+            var onSavedCalled = false
+            val viewModel =
+                ExerciseListViewModel(
+                    repository = repository,
+                    nowMillis = { 5678L },
+                    coroutineScope = backgroundScope,
+                )
+
+            viewModel.updateName("Bench Press")
+            viewModel.updateCategory("  Push  ")
+            viewModel.saveExercise(onSaved = { onSavedCalled = true })
+
+            assertEquals("Push", repository.createdCategory)
+            assertTrue(onSavedCalled)
+        }
+
+    @Test
+    fun blankCategoryIsClearedToNullOnSave() =
+        runTest {
+            val repository = FakeExerciseRepository()
+            val viewModel =
+                ExerciseListViewModel(
+                    repository = repository,
+                    nowMillis = { 5678L },
+                    coroutineScope = backgroundScope,
+                )
+
+            viewModel.updateName("Bench Press")
+            viewModel.updateCategory("   ")
+            viewModel.saveExercise(onSaved = {})
+
+            assertEquals(null, repository.createdCategory)
+        }
+
+    @Test
+    fun loadExerciseForEditPopulatesCategory() =
+        runTest {
+            val repository =
+                FakeExerciseRepository(
+                    exercise =
+                        ExerciseEntity(
+                            id = 4,
+                            name = "Tempo Run",
+                            notes = null,
+                            category = "Cardio",
+                            trackingMode = "timed",
+                            createdAt = 1,
+                            updatedAt = 2,
+                        ),
+                )
+            val viewModel =
+                ExerciseListViewModel(
+                    repository = repository,
+                    coroutineScope = backgroundScope,
+                )
+
+            viewModel.loadExerciseForEdit(4)
+            advanceUntilIdle()
+
+            assertEquals("Cardio", viewModel.formState.value.category)
+        }
+
+    @Test
     fun missingExerciseOnLoadShowsExerciseNotFound() =
         runTest {
             val repository = FakeExerciseRepository()
@@ -247,6 +313,8 @@ private class FakeExerciseRepository(
         private set
     var createdNotes: String? = null
         private set
+    var createdCategory: String? = null
+        private set
     var createdTrackingMode: String? = null
         private set
     var createdNowMillis: Long? = null
@@ -258,6 +326,8 @@ private class FakeExerciseRepository(
     var updatedName: String? = null
         private set
     var updatedNotes: String? = null
+        private set
+    var updatedCategory: String? = null
         private set
     var updatedTrackingMode: String? = null
         private set
@@ -271,12 +341,14 @@ private class FakeExerciseRepository(
     override suspend fun createExercise(
         name: String,
         notes: String?,
+        category: String?,
         trackingMode: String,
         nowMillis: Long,
     ): Long {
         createCount += 1
         createdName = name
         createdNotes = notes
+        createdCategory = category
         createdTrackingMode = trackingMode
         createdNowMillis = nowMillis
         return 1L
@@ -291,6 +363,7 @@ private class FakeExerciseRepository(
         id: Long,
         name: String,
         notes: String?,
+        category: String?,
         trackingMode: String,
         nowMillis: Long,
     ) {
@@ -298,6 +371,7 @@ private class FakeExerciseRepository(
         updatedExerciseId = id
         updatedName = name
         updatedNotes = notes
+        updatedCategory = category
         updatedTrackingMode = trackingMode
         updatedNowMillis = nowMillis
     }

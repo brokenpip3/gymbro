@@ -18,6 +18,11 @@ class UiComponentsContractTest {
 }
 
 @Composable
+private fun CategoryChipContract() {
+    CategoryChip(category = "Push")
+}
+
+@Composable
 private fun EmptyStateSignatureContract() {
     EmptyState(
         icon = GymbroIcons.Schedules,

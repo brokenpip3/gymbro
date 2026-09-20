@@ -60,6 +60,10 @@ fun CreateExerciseScreenRoute(
             viewModel.clearSaveError()
             viewModel.updateNotes(value)
         },
+        onCategoryChange = { value ->
+            viewModel.clearSaveError()
+            viewModel.updateCategory(value)
+        },
         onTrackingModeChange = { value ->
             viewModel.clearSaveError()
             viewModel.updateTrackingMode(value)
@@ -80,6 +84,7 @@ fun CreateExerciseScreen(
     formState: ExerciseFormState,
     onNameChange: (String) -> Unit,
     onNotesChange: (String) -> Unit,
+    onCategoryChange: (String) -> Unit,
     onTrackingModeChange: (TrackingMode) -> Unit,
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
@@ -116,6 +121,17 @@ fun CreateExerciseScreen(
             enabled = !formState.isLoading,
             label = { Text(text = "Notes") },
             minLines = 3,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { keyboardDismissal.dismiss() }),
+        )
+
+        OutlinedTextField(
+            value = formState.category,
+            onValueChange = onCategoryChange,
+            modifier = Modifier.fillMaxWidth().testTag("exercise-category-input"),
+            enabled = !formState.isLoading,
+            label = { Text(text = "Category") },
+            singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { keyboardDismissal.dismiss() }),
         )

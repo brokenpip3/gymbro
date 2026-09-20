@@ -66,11 +66,13 @@ private fun ExerciseEditFormContract() {
             ExerciseFormState(
                 name = "Bench Press",
                 notes = "Pause on chest",
+                category = "Push",
                 trackingMode = TrackingMode.Strength,
                 saveError = "Unable to save exercise",
             ),
         onNameChange = {},
         onNotesChange = {},
+        onCategoryChange = {},
         onTrackingModeChange = {},
         onSave = {},
     )
@@ -90,6 +92,77 @@ class ExercisesScreenContractTest {
     }
 
     @Test
+    fun exerciseSearchMatchesCategoryIgnoringCase() {
+        val rows =
+            listOf(
+                exerciseRow(id = 1L, name = "Back Squat", category = "Push"),
+                exerciseRow(id = 2L, name = "Tempo Run", category = "Cardio"),
+            )
+
+        assertEquals(listOf(1L), filterExerciseRows(rows, "push").map { row -> row.exercise.id })
+        assertEquals(listOf(2L), filterExerciseRows(rows, "CARDIO").map { row -> row.exercise.id })
+    }
+
+    @Test
+    fun groupingDisabledKeepsFlatRowOrder() {
+        val rows =
+            listOf(
+                exerciseRow(id = 1L, name = "A", category = "Push"),
+                exerciseRow(id = 2L, name = "B", category = null),
+            )
+
+        assertEquals(
+            listOf(
+                ExerciseListEntry.Row(rows[0]),
+                ExerciseListEntry.Row(rows[1]),
+            ),
+            buildExerciseListEntries(rows, groupByCategory = false),
+        )
+    }
+
+    @Test
+    fun groupingSortsCategoriesAlphabeticallyWithUncategorizedLast() {
+        val rows =
+            listOf(
+                exerciseRow(id = 1L, name = "Squat", category = "legs"),
+                exerciseRow(id = 2L, name = "Bench", category = "Push"),
+                exerciseRow(id = 3L, name = "Run", category = null),
+                exerciseRow(id = 4L, name = "Lat Pull", category = "Legs"),
+            )
+
+        assertEquals(
+            listOf(
+                ExerciseListEntry.Header("Legs"),
+                ExerciseListEntry.Row(rows[3]),
+                ExerciseListEntry.Row(rows[0]),
+                ExerciseListEntry.Header("Push"),
+                ExerciseListEntry.Row(rows[1]),
+                ExerciseListEntry.Header(UNCATEGORIZED_GROUP_LABEL),
+                ExerciseListEntry.Row(rows[2]),
+            ),
+            buildExerciseListEntries(rows, groupByCategory = true),
+        )
+    }
+
+    @Test
+    fun groupingPreservesNameOrderWithinCategory() {
+        val rows =
+            listOf(
+                exerciseRow(id = 1L, name = "Cable Fly", category = "Push"),
+                exerciseRow(id = 2L, name = "Bench", category = "Push"),
+            )
+
+        assertEquals(
+            listOf(
+                ExerciseListEntry.Header("Push"),
+                ExerciseListEntry.Row(rows[1]),
+                ExerciseListEntry.Row(rows[0]),
+            ),
+            buildExerciseListEntries(rows, groupByCategory = true),
+        )
+    }
+
+    @Test
     fun blankExerciseSearchKeepsExistingOrder() {
         val rows =
             listOf(
@@ -105,6 +178,7 @@ private fun exerciseRow(
     id: Long,
     name: String,
     notes: String? = null,
+    category: String? = null,
 ): ExerciseListItem =
     ExerciseListItem(
         exercise =
@@ -112,6 +186,7 @@ private fun exerciseRow(
                 id = id,
                 name = name,
                 notes = notes,
+                category = category,
                 trackingMode = TrackingMode.Strength.databaseValue,
                 createdAt = 0L,
                 updatedAt = 0L,
@@ -124,6 +199,7 @@ private class ContractExerciseRepository : ExerciseCreator {
     override suspend fun createExercise(
         name: String,
         notes: String?,
+        category: String?,
         trackingMode: String,
         nowMillis: Long,
     ): Long = 1L
@@ -134,6 +210,7 @@ private class ContractExerciseRepository : ExerciseCreator {
         id: Long,
         name: String,
         notes: String?,
+        category: String?,
         trackingMode: String,
         nowMillis: Long,
     ) = Unit

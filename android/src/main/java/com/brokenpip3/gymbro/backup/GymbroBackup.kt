@@ -22,6 +22,7 @@ data class BackupExercise(
     val trackingMode: String,
     val createdAt: Long,
     val updatedAt: Long,
+    val category: String? = null,
 )
 
 @Serializable

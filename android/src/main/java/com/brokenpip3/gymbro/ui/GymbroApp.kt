@@ -117,6 +117,7 @@ fun GymbroApp() {
                 resultsSource = resultsSource,
                 backupStore = application.backupStore,
                 themeSettings = application.themeSettings,
+                exerciseListSettings = application.exerciseListSettings,
                 modifier = Modifier.weight(1f),
             )
         }
