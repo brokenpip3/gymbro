@@ -18,7 +18,11 @@ class MainActivity : ComponentActivity() {
         val gymbroApplication = application as GymbroApplication
         setContent {
             val themeMode by gymbroApplication.themeSettings.themeMode.collectAsState()
-            GymbroTheme(darkTheme = themeMode.isDark(isSystemInDarkTheme())) {
+            val themePalette by gymbroApplication.themeSettings.themePalette.collectAsState()
+            GymbroTheme(
+                palette = themePalette,
+                darkTheme = themeMode.isDark(isSystemInDarkTheme()),
+            ) {
                 GymbroApp()
             }
         }
