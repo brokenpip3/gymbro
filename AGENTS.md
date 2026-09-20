@@ -23,7 +23,7 @@ just run-emulator-start-headless
 
 Run Gradle commands one at a time. Use `--no-daemon -Djava.net.preferIPv4Stack=true` if the environment has Gradle or wildcard-IP issues.
 
-The project uses Java 17, Android SDK/build tools 36, and the pinned Gradle wrapper. Do not use a system Gradle installation or commit generated `.gradle-home`, `build`, `dist`, or signing files.
+The project uses Java 21, Android SDK/build tools 36, and the pinned Gradle wrapper. Do not use a system Gradle installation or commit generated `.gradle-home`, `build`, `dist`, or signing files.
 
 ## Data and migrations
 
