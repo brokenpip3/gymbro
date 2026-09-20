@@ -55,6 +55,7 @@ import com.brokenpip3.gymbro.backup.InvalidBackupException
 import com.brokenpip3.gymbro.data.demo.DemoDataSeeder
 import com.brokenpip3.gymbro.ui.settings.ExerciseListSettings
 import com.brokenpip3.gymbro.ui.theme.ThemeMode
+import com.brokenpip3.gymbro.ui.theme.ThemePalette
 import com.brokenpip3.gymbro.ui.theme.ThemeSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -239,6 +240,7 @@ fun SettingsRoute(
         )
     val state by viewModel.uiState.collectAsState()
     val themeMode by themeSettings.themeMode.collectAsState()
+    val themePalette by themeSettings.themePalette.collectAsState()
     val groupByCategory by exerciseListSettings.groupExercisesByCategory.collectAsState()
 
     val exportFileLauncher =
@@ -254,6 +256,8 @@ fun SettingsRoute(
         state = state,
         themeMode = themeMode,
         onThemeModeSelected = themeSettings::setThemeMode,
+        themePalette = themePalette,
+        onThemePaletteSelected = themeSettings::setThemePalette,
         groupByCategory = groupByCategory,
         onGroupByCategoryChange = exerciseListSettings::setGroupExercisesByCategory,
         onConfirmFileImport = viewModel::confirmFileImport,
@@ -274,6 +278,8 @@ fun SettingsScreen(
     state: SettingsUiState,
     themeMode: ThemeMode = ThemeMode.System,
     onThemeModeSelected: (ThemeMode) -> Unit = {},
+    themePalette: ThemePalette = ThemePalette.Forest,
+    onThemePaletteSelected: (ThemePalette) -> Unit = {},
     groupByCategory: Boolean = false,
     onGroupByCategoryChange: (Boolean) -> Unit = {},
     onConfirmFileImport: () -> Unit = {},
@@ -324,6 +330,8 @@ fun SettingsScreen(
             SettingsAppearanceSection(
                 themeMode = themeMode,
                 onThemeModeSelected = onThemeModeSelected,
+                themePalette = themePalette,
+                onThemePaletteSelected = onThemePaletteSelected,
             )
             SettingsExercisesSection(
                 groupByCategory = groupByCategory,
@@ -415,6 +423,8 @@ private fun SettingsAboutSection(onSourceCodeClick: (String) -> Unit) {
 private fun SettingsAppearanceSection(
     themeMode: ThemeMode,
     onThemeModeSelected: (ThemeMode) -> Unit,
+    themePalette: ThemePalette,
+    onThemePaletteSelected: (ThemePalette) -> Unit,
 ) {
     SettingsSectionTitle(text = "Appearance")
     Text(
@@ -434,6 +444,27 @@ private fun SettingsAppearanceSection(
                 modifier = Modifier.weight(1f),
             ) {
                 Text(text = mode.label)
+            }
+        }
+    }
+    Text(
+        text = "Colors",
+        style = MaterialTheme.typography.bodyMedium,
+        modifier = Modifier.padding(top = 12.dp),
+    )
+    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+        ThemePalette.entries.forEachIndexed { index, palette ->
+            SegmentedButton(
+                selected = palette == themePalette,
+                onClick = { onThemePaletteSelected(palette) },
+                shape =
+                    SegmentedButtonDefaults.itemShape(
+                        index = index,
+                        count = ThemePalette.entries.size,
+                    ),
+                modifier = Modifier.weight(1f),
+            ) {
+                Text(text = palette.label)
             }
         }
     }
