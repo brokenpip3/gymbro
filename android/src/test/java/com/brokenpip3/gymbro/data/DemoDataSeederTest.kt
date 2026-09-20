@@ -23,6 +23,20 @@ class DemoDataSeederTest {
 
             assertTrue(result.inserted)
             assertEquals(8, database.exerciseDao().getAllExercises().size)
+            val categories = database.exerciseDao().getAllExercises().associate { it.name to it.category }
+            assertEquals(
+                mapOf(
+                    "Back Squat" to "Legs",
+                    "Romanian Deadlift" to "Legs",
+                    "Walking Lunge" to "Legs",
+                    "Bench Press" to "Push",
+                    "Pull Up" to "Pull",
+                    "Shoulder Press" to "Push",
+                    "Running" to "Cardio",
+                    "Plank" to "Cardio",
+                ),
+                categories,
+            )
             assertEquals(3, database.scheduleDao().getAllSchedules().size)
             assertEquals(9, database.workoutRunDao().getAllWorkoutRuns().count { it.finishedAt != null })
             assertNotNull(database.workoutRunDao().getActiveWorkoutRun())
