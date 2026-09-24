@@ -6,12 +6,24 @@ data class ActiveWorkoutUiState(
     val isLoading: Boolean = true,
     val activeWorkout: ActiveWorkoutUiModel? = null,
     val errorMessage: String? = null,
+    val deletedSetForUndo: DeletedSetSnapshot? = null,
     val exerciseInfo: ExerciseInfoUiModel? = null,
     val finishedWorkoutRunId: Long? = null,
     val discardedWorkoutRunId: Long? = null,
     val availableExercises: List<AvailableWorkoutExerciseUiModel> = emptyList(),
     val isAddExerciseDialogVisible: Boolean = false,
     val addExerciseErrorMessage: String? = null,
+)
+
+data class DeletedSetSnapshot(
+    val exerciseResultId: Long,
+    val setOrder: Int,
+    val reps: Int?,
+    val weight: Double?,
+    val durationSeconds: Long?,
+    val distance: Double?,
+    val notes: String?,
+    val isCompleted: Boolean,
 )
 
 data class ActiveWorkoutUiModel(
@@ -87,11 +99,6 @@ data class SetEditRequest(
     val weight: Double?,
     val durationSeconds: Long?,
     val distance: Double?,
-)
-
-data class SetNotesEditRequest(
-    val setId: Long,
-    val setNumber: Int,
     val notes: String?,
 )
 

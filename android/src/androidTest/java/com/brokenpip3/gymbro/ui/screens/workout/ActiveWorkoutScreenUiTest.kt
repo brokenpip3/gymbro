@@ -4,10 +4,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -45,7 +47,8 @@ class ActiveWorkoutScreenUiTest {
             .assertIsDisplayed()
         composeRule.onNodeWithTag("workout-input-Reps").assertIsDisplayed()
         composeRule.onNodeWithTag("workout-input-Weight").assertIsDisplayed()
-        composeRule.onNodeWithText("Add Set").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Copy previous").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Add empty").performScrollTo().assertIsDisplayed()
     }
 
     @Test
@@ -179,6 +182,96 @@ class ActiveWorkoutScreenUiTest {
     }
 
     @Test
+    fun editDialogOffersDeleteAndNotesForAnySet() {
+        composeRule.setContent {
+            GymbroTheme {
+                ActiveWorkoutScreen(uiState = activeWorkoutState())
+            }
+        }
+
+        composeRule.onNodeWithText("8").performClick()
+
+        composeRule.onNodeWithTag("workout-edit-input-Notes").assertIsDisplayed()
+        composeRule.onNodeWithText("Delete set").assertIsDisplayed()
+    }
+
+    @Test
+    fun deleteSnackbarOffersUndo() {
+        var undoCount = 0
+        composeRule.setContent {
+            GymbroTheme {
+                ActiveWorkoutScreen(
+                    uiState =
+                        activeWorkoutState(
+                            deletedSetForUndo =
+                                DeletedSetSnapshot(
+                                    exerciseResultId = 10L,
+                                    setOrder = 0,
+                                    reps = 8,
+                                    weight = 80.0,
+                                    durationSeconds = null,
+                                    distance = null,
+                                    notes = null,
+                                    isCompleted = true,
+                                ),
+                        ),
+                    onUndoDeleteSet = { undoCount += 1 },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Set deleted").assertIsDisplayed()
+        composeRule.onNodeWithText("Undo").performClick()
+
+        assertEquals(1, undoCount)
+    }
+
+    @Test
+    fun activeWorkoutDoesNotShowStaticSwipeHint() {
+        composeRule.setContent {
+            GymbroTheme {
+                ActiveWorkoutScreen(uiState = activeWorkoutState())
+            }
+        }
+
+        composeRule.onAllNodesWithText("Swipe a set to delete it").assertCountEquals(0)
+    }
+
+    @Test
+    fun blankAddActionCreatesAnEmptySet() {
+        var addedExerciseResultId: Long? = null
+        composeRule.setContent {
+            GymbroTheme {
+                ActiveWorkoutScreen(
+                    uiState = activeWorkoutState(),
+                    onAddEmptySet = { addedExerciseResultId = it },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Add empty").performClick()
+
+        assertEquals(10L, addedExerciseResultId)
+    }
+
+    @Test
+    fun copyPreviousActionUsesTheExistingCopyCallback() {
+        var copiedExerciseResultId: Long? = null
+        composeRule.setContent {
+            GymbroTheme {
+                ActiveWorkoutScreen(
+                    uiState = activeWorkoutState(),
+                    onAddSetRow = { copiedExerciseResultId = it },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Copy previous").performClick()
+
+        assertEquals(10L, copiedExerciseResultId)
+    }
+
+    @Test
     fun invalidSetInputShowsInlineValidation() {
         composeRule.setContent {
             GymbroTheme {
@@ -287,6 +380,7 @@ private fun activeWorkoutState(
     isAddExerciseDialogVisible: Boolean = false,
     availableExercises: List<AvailableWorkoutExerciseUiModel> = emptyList(),
     exerciseInfo: ExerciseInfoUiModel? = null,
+    deletedSetForUndo: DeletedSetSnapshot? = null,
 ): ActiveWorkoutUiState =
     ActiveWorkoutUiState(
         isLoading = false,
@@ -321,4 +415,5 @@ private fun activeWorkoutState(
         isAddExerciseDialogVisible = isAddExerciseDialogVisible,
         availableExercises = availableExercises,
         exerciseInfo = exerciseInfo,
+        deletedSetForUndo = deletedSetForUndo,
     )

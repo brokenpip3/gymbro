@@ -40,6 +40,7 @@ private const val UNSUPPORTED_ADD_EMPTY_SET = "Adding empty sets is not supporte
 private const val UNSUPPORTED_ADD_EXERCISE = "Adding exercises is not supported"
 private const val UNSUPPORTED_SET_METRICS_UPDATE = "Updating set metrics is not supported"
 private const val UNSUPPORTED_SET_COMPLETION_UPDATE = "Updating set completion is not supported"
+private const val UNSUPPORTED_RESTORE_SET = "Restoring deleted sets is not supported"
 
 private fun unsupportedExerciseInfo(): Nothing = throw UnsupportedOperationException(UNSUPPORTED_EXERCISE_INFO)
 
@@ -55,6 +56,8 @@ private fun unsupportedSetMetricsUpdate(): Nothing = throw UnsupportedOperationE
 private fun unsupportedSetCompletionUpdate(): Nothing {
     throw UnsupportedOperationException(UNSUPPORTED_SET_COMPLETION_UPDATE)
 }
+
+private fun unsupportedRestoreSet(): Nothing = throw UnsupportedOperationException(UNSUPPORTED_RESTORE_SET)
 
 @Suppress("ktlint:standard:function-expression-body")
 private suspend fun WorkoutRepository.copyPreviousSet(exerciseResultId: Long): Long {
@@ -118,6 +121,8 @@ interface ActiveWorkoutSource {
     )
 
     suspend fun deleteSet(setId: Long)
+
+    suspend fun restoreSet(snapshot: DeletedSetSnapshot): Unit = unsupportedRestoreSet()
 
     suspend fun deleteExerciseResult(exerciseResultId: Long)
 
@@ -267,6 +272,21 @@ class WorkoutRepositoryActiveWorkoutSource(
         repository.deleteSet(setId)
     }
 
+    override suspend fun restoreSet(snapshot: DeletedSetSnapshot) {
+        repository.restoreSet(
+            SetResultEntity(
+                exerciseResultId = snapshot.exerciseResultId,
+                setOrder = snapshot.setOrder,
+                reps = snapshot.reps,
+                weight = snapshot.weight,
+                durationSeconds = snapshot.durationSeconds,
+                distance = snapshot.distance,
+                notes = snapshot.notes,
+                isCompleted = snapshot.isCompleted,
+            ),
+        )
+    }
+
     override suspend fun deleteExerciseResult(exerciseResultId: Long) {
         repository.deleteExerciseFromWorkout(exerciseResultId)
     }
@@ -329,6 +349,7 @@ class ActiveWorkoutViewModel(
                         if (state.errorMessage == null) {
                             state.copy(
                                 errorMessage = _uiState.value.errorMessage,
+                                deletedSetForUndo = _uiState.value.deletedSetForUndo,
                                 exerciseInfo = _uiState.value.exerciseInfo,
                                 finishedWorkoutRunId = _uiState.value.finishedWorkoutRunId,
                                 discardedWorkoutRunId = _uiState.value.discardedWorkoutRunId,
@@ -341,6 +362,7 @@ class ActiveWorkoutViewModel(
                         } else {
                             state.copy(
                                 availableExercises = _uiState.value.availableExercises,
+                                deletedSetForUndo = _uiState.value.deletedSetForUndo,
                                 finishedWorkoutRunId = _uiState.value.finishedWorkoutRunId,
                                 discardedWorkoutRunId = _uiState.value.discardedWorkoutRunId,
                                 isAddExerciseDialogVisible =
@@ -626,6 +648,24 @@ class ActiveWorkoutViewModel(
     }
 
     fun deleteSet(setId: Long) {
+        val deletedSet =
+            _uiState.value.activeWorkout
+                ?.exercises
+                ?.firstNotNullOfOrNull { exercise ->
+                    exercise.sets.firstOrNull { set -> set.id == setId }?.let { set ->
+                        DeletedSetSnapshot(
+                            exerciseResultId = exercise.exerciseResultId,
+                            setOrder = set.setOrder,
+                            reps = set.reps,
+                            weight = set.weight,
+                            durationSeconds = set.durationSeconds,
+                            distance = set.distance,
+                            notes = set.notes,
+                            isCompleted = set.isCompleted,
+                        )
+                    }
+                }
+
         _uiState.update { state ->
             state.copy(errorMessage = null)
         }
@@ -633,11 +673,42 @@ class ActiveWorkoutViewModel(
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             runCatching {
                 source.deleteSet(setId)
+            }.onSuccess {
+                _uiState.update { state ->
+                    state.copy(deletedSetForUndo = deletedSet)
+                }
             }.onFailure {
                 _uiState.update { state ->
                     state.copy(errorMessage = "Unable to delete set")
                 }
             }
+        }
+    }
+
+    fun undoDeleteSet() {
+        val deletedSet = _uiState.value.deletedSetForUndo ?: return
+
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            runCatching {
+                source.restoreSet(deletedSet)
+            }.onSuccess {
+                _uiState.update { state ->
+                    state.copy(
+                        deletedSetForUndo = null,
+                        errorMessage = null,
+                    )
+                }
+            }.onFailure {
+                _uiState.update { state ->
+                    state.copy(errorMessage = "Unable to restore set")
+                }
+            }
+        }
+    }
+
+    fun dismissDeleteUndo() {
+        _uiState.update { state ->
+            state.copy(deletedSetForUndo = null)
         }
     }
 
@@ -715,6 +786,7 @@ class ActiveWorkoutViewModel(
                 _uiState.update { state ->
                     state.copy(
                         activeWorkout = null,
+                        deletedSetForUndo = null,
                         exerciseInfo = null,
                         finishedWorkoutRunId = workoutRunId,
                     )
@@ -741,6 +813,7 @@ class ActiveWorkoutViewModel(
                 _uiState.update { state ->
                     state.copy(
                         activeWorkout = null,
+                        deletedSetForUndo = null,
                         exerciseInfo = null,
                         discardedWorkoutRunId = workoutRunId,
                     )

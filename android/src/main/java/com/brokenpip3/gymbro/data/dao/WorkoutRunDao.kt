@@ -92,8 +92,17 @@ interface WorkoutRunDao {
     @Query("SELECT * FROM set_results ORDER BY id")
     suspend fun getAllSetResults(): List<SetResultEntity>
 
+    @Query("SELECT * FROM set_results WHERE id = :id")
+    suspend fun getSetResult(id: Long): SetResultEntity?
+
     @Update
     suspend fun updateSetResult(setResult: SetResultEntity)
+
+    @Query("UPDATE set_results SET setOrder = :setOrder WHERE id = :setId")
+    suspend fun updateSetOrder(
+        setId: Long,
+        setOrder: Int,
+    )
 
     @Query(
         """

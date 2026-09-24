@@ -279,8 +279,32 @@ class WorkoutRepository internal constructor(
     }
 
     suspend fun deleteSet(setResultId: Long) {
-        workoutRunDao.deleteSetResult(setResultId)
+        transactionRunner.run {
+            val setResult = workoutRunDao.getSetResult(setResultId) ?: return@run
+            workoutRunDao.deleteSetResult(setResultId)
+            normalizeSetOrders(setResult.exerciseResultId)
+        }
     }
+
+    suspend fun restoreSet(snapshot: SetResultEntity): Long =
+        transactionRunner.run {
+            val currentSets = workoutRunDao.getSetResults(snapshot.exerciseResultId)
+            val targetOrder = snapshot.setOrder.coerceIn(0..currentSets.size)
+            temporarilyReorderSets(currentSets)
+
+            val restoredId =
+                workoutRunDao.insertSetResult(
+                    snapshot.copy(
+                        id = 0,
+                        setOrder = targetOrder,
+                    ),
+                )
+            currentSets.forEachIndexed { index, setResult ->
+                val finalOrder = if (index >= targetOrder) index + 1 else index
+                workoutRunDao.updateSetOrder(setResult.id, finalOrder)
+            }
+            restoredId
+        }
 
     suspend fun deleteExerciseFromWorkout(exerciseResultId: Long) {
         transactionRunner.run {
@@ -316,6 +340,20 @@ class WorkoutRepository internal constructor(
             .maxOfOrNull { it.setOrder }
             ?.plus(1)
             ?: 0
+
+    private suspend fun normalizeSetOrders(exerciseResultId: Long) {
+        val setResults = workoutRunDao.getSetResults(exerciseResultId)
+        temporarilyReorderSets(setResults)
+        setResults.forEachIndexed { index, setResult ->
+            workoutRunDao.updateSetOrder(setResult.id, index)
+        }
+    }
+
+    private suspend fun temporarilyReorderSets(setResults: List<SetResultEntity>) {
+        setResults.forEachIndexed { index, setResult ->
+            workoutRunDao.updateSetOrder(setResult.id, -(index + 1))
+        }
+    }
 
     private suspend fun insertEmptySet(exerciseResultId: Long): Long =
         workoutRunDao.insertSetResult(
