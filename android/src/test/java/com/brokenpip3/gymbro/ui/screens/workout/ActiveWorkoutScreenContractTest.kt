@@ -1,5 +1,6 @@
 package com.brokenpip3.gymbro.ui.screens.workout
 
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.runtime.Composable
 import com.brokenpip3.gymbro.data.entities.WorkoutRunEntity
 import com.brokenpip3.gymbro.domain.TrackingMode
@@ -7,6 +8,7 @@ import com.brokenpip3.gymbro.ui.screens.WorkoutScreen
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -49,7 +51,30 @@ class ActiveWorkoutScreenContractTest {
     @Test
     fun strengthRoutineContractIncludesExpectedTableText() {
         assertEquals(listOf("Reps", "Weight", "Done"), routineHeaderLabels(TrackingMode.Strength))
-        assertEquals("Add Set", ADD_SET_ROW_LABEL)
+    }
+
+    @Test
+    fun blankSetInputsUseTheEmptySetAction() {
+        assertEquals(SetInputAction.AddEmpty, setInputAction("", ""))
+        assertEquals(SetInputAction.AddEmpty, setInputAction("  ", "  "))
+    }
+
+    @Test
+    fun enteredSetInputsUseTheMetricsAction() {
+        assertEquals(SetInputAction.AddMetrics, setInputAction("8", ""))
+    }
+
+    @Test
+    fun setSwipeDirectionsMapToDeleteAndEdit() {
+        assertEquals(SetSwipeAction.Edit, setSwipeAction(SwipeToDismissBoxValue.EndToStart))
+        assertEquals(SetSwipeAction.Delete, setSwipeAction(SwipeToDismissBoxValue.StartToEnd))
+        assertEquals(null, setSwipeAction(SwipeToDismissBoxValue.Settled))
+    }
+
+    @Test
+    fun eachSetSwipeStateUsesItsSetIdentity() {
+        assertEquals(101L, setSwipeCompositionKey(101L))
+        assertNotEquals(setSwipeCompositionKey(101L), setSwipeCompositionKey(102L))
     }
 
     @Test
@@ -92,6 +117,13 @@ class ActiveWorkoutScreenContractTest {
         assertEquals("Checked", completed.completionActionLabel)
         assertEquals("Unchecked", incomplete.completionStateLabel)
         assertEquals("Done", incomplete.completionActionLabel)
+    }
+
+    @Test
+    fun displayedSetNumberUsesCurrentListPosition() {
+        assertEquals(1, displayedSetNumber(0))
+        assertEquals(2, displayedSetNumber(1))
+        assertEquals(3, displayedSetNumber(2))
     }
 
     @Test

@@ -1302,6 +1302,100 @@ class WorkoutRepositoryTest {
                 workoutRunDao.getExerciseResult(31)?.notes,
             )
         }
+
+    @Test
+    fun deleteSetCompactsRemainingOrders() =
+        runTest {
+            val workoutRunDao =
+                FakeWorkoutRunDao(
+                    setResults =
+                        listOf(
+                            setResult(id = 1, exerciseResultId = 5, setOrder = 0),
+                            setResult(id = 2, exerciseResultId = 5, setOrder = 1),
+                            setResult(id = 3, exerciseResultId = 5, setOrder = 2),
+                        ),
+                )
+            val repository =
+                WorkoutRepository(
+                    workoutRunDao = workoutRunDao,
+                    scheduleDao = FakeWorkoutScheduleDao(),
+                    exerciseDao = FakeWorkoutExerciseDao(),
+                )
+
+            repository.deleteSet(setResultId = 2)
+
+            assertEquals(
+                listOf(0, 1),
+                workoutRunDao.getSetResults(exerciseResultId = 5).map { it.setOrder },
+            )
+        }
+
+    @Test
+    fun addSetAfterDeletingMiddleSetUsesNextDenseOrder() =
+        runTest {
+            val workoutRunDao =
+                FakeWorkoutRunDao(
+                    setResults =
+                        listOf(
+                            setResult(id = 1, exerciseResultId = 5, setOrder = 0),
+                            setResult(id = 2, exerciseResultId = 5, setOrder = 1),
+                            setResult(id = 3, exerciseResultId = 5, setOrder = 2),
+                        ),
+                    insertSetResultId = 4,
+                )
+            val repository =
+                WorkoutRepository(
+                    workoutRunDao = workoutRunDao,
+                    scheduleDao = FakeWorkoutScheduleDao(),
+                    exerciseDao = FakeWorkoutExerciseDao(),
+                )
+
+            repository.deleteSet(setResultId = 2)
+            repository.addEmptySet(exerciseResultId = 5)
+
+            assertEquals(
+                listOf(0, 1, 2),
+                workoutRunDao.getSetResults(exerciseResultId = 5).map { it.setOrder },
+            )
+        }
+
+    @Test
+    fun restoreSetReinsertsMetricsNotesCompletionAndPosition() =
+        runTest {
+            val workoutRunDao =
+                FakeWorkoutRunDao(
+                    setResults =
+                        listOf(
+                            setResult(id = 1, exerciseResultId = 5, setOrder = 0),
+                            setResult(id = 3, exerciseResultId = 5, setOrder = 1),
+                        ),
+                    insertSetResultId = 4,
+                )
+            val repository =
+                WorkoutRepository(
+                    workoutRunDao = workoutRunDao,
+                    scheduleDao = FakeWorkoutScheduleDao(),
+                    exerciseDao = FakeWorkoutExerciseDao(),
+                )
+            val snapshot =
+                setResult(
+                    id = 2,
+                    exerciseResultId = 5,
+                    setOrder = 1,
+                    reps = 8,
+                    weight = 40.0,
+                ).copy(
+                    notes = "Slow eccentric",
+                    isCompleted = false,
+                )
+
+            val restoredId = repository.restoreSet(snapshot)
+            val storedSets = workoutRunDao.getSetResults(exerciseResultId = 5)
+
+            assertEquals(4, restoredId)
+            assertEquals(listOf(0, 1, 2), storedSets.map { it.setOrder })
+            assertEquals(snapshot.copy(id = restoredId, setOrder = 1), storedSets[1])
+        }
 }
 
 private class CountingTransactionRunner : TransactionRunner {
@@ -1520,8 +1614,17 @@ private class FakeWorkoutRunDao(
 
     override suspend fun getAllSetResults(): List<SetResultEntity> = storedSetResults.sortedBy { it.id }
 
+    override suspend fun getSetResult(id: Long): SetResultEntity? = storedSetResults.firstOrNull { it.id == id }
+
     override suspend fun updateSetResult(setResult: SetResultEntity) {
         updatedSetResult = setResult
+    }
+
+    override suspend fun updateSetOrder(
+        setId: Long,
+        setOrder: Int,
+    ) {
+        storedSetResults.replaceSet(setId) { it.copy(setOrder = setOrder) }
     }
 
     override suspend fun updateSetMetrics(
@@ -1570,6 +1673,7 @@ private class FakeWorkoutRunDao(
 
     override suspend fun deleteSetResult(id: Long) {
         deletedSetResultId = id
+        storedSetResults.removeAll { setResult -> setResult.id == id }
     }
 
     override suspend fun deleteSetResultsForExercise(exerciseResultId: Long) {

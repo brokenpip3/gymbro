@@ -640,6 +640,89 @@ class ActiveWorkoutViewModelTest {
         }
 
     @Test
+    fun deletingSetExposesItsSnapshotForUndo() =
+        runTest {
+            val source = activeWorkoutSourceWithSets()
+            val viewModel =
+                ActiveWorkoutViewModel(
+                    source = source,
+                    coroutineScope = viewModelScope(),
+                )
+            advanceUntilIdle()
+
+            viewModel.deleteSet(setId = 20L)
+            advanceUntilIdle()
+
+            assertEquals(
+                DeletedSetSnapshot(
+                    exerciseResultId = 10L,
+                    setOrder = 0,
+                    reps = 8,
+                    weight = 80.0,
+                    durationSeconds = null,
+                    distance = null,
+                    notes = null,
+                    isCompleted = false,
+                ),
+                viewModel.uiState.value.deletedSetForUndo,
+            )
+            assertEquals(20L, source.deletedSetId)
+        }
+
+    @Test
+    fun undoDeleteRestoresSnapshotAndClearsUndoState() =
+        runTest {
+            val source = activeWorkoutSourceWithSets()
+            val viewModel =
+                ActiveWorkoutViewModel(
+                    source = source,
+                    coroutineScope = viewModelScope(),
+                )
+            advanceUntilIdle()
+
+            viewModel.deleteSet(setId = 20L)
+            advanceUntilIdle()
+            viewModel.undoDeleteSet()
+            advanceUntilIdle()
+
+            assertEquals(
+                viewModel.uiState.value.deletedSetForUndo,
+                null,
+            )
+            assertEquals(
+                DeletedSetSnapshot(
+                    exerciseResultId = 10L,
+                    setOrder = 0,
+                    reps = 8,
+                    weight = 80.0,
+                    durationSeconds = null,
+                    distance = null,
+                    notes = null,
+                    isCompleted = false,
+                ),
+                source.restoredSet,
+            )
+        }
+
+    @Test
+    fun dismissDeleteUndoClearsExpiredSnapshot() =
+        runTest {
+            val source = activeWorkoutSourceWithSets()
+            val viewModel =
+                ActiveWorkoutViewModel(
+                    source = source,
+                    coroutineScope = viewModelScope(),
+                )
+            advanceUntilIdle()
+
+            viewModel.deleteSet(setId = 20L)
+            advanceUntilIdle()
+            viewModel.dismissDeleteUndo()
+
+            assertEquals(null, viewModel.uiState.value.deletedSetForUndo)
+        }
+
+    @Test
     fun oversizedDurationTextSetsErrorAndDoesNotWrite() =
         runTest {
             val source = FakeActiveWorkoutSource()
@@ -1266,6 +1349,10 @@ private class FakeActiveWorkoutSource(
         private set
     var updatedSetNotes: Pair<Long, String?>? = null
         private set
+    var deletedSetId: Long? = null
+        private set
+    var restoredSet: DeletedSetSnapshot? = null
+        private set
     var updateSetMetricsCallCount = 0
         private set
     var loadedExerciseInfoResultId: Long? = null
@@ -1380,7 +1467,13 @@ private class FakeActiveWorkoutSource(
         updatedSetNotes = setId to notes
     }
 
-    override suspend fun deleteSet(setId: Long) = Unit
+    override suspend fun deleteSet(setId: Long) {
+        deletedSetId = setId
+    }
+
+    override suspend fun restoreSet(snapshot: DeletedSetSnapshot) {
+        restoredSet = snapshot
+    }
 
     override suspend fun deleteExerciseResult(exerciseResultId: Long) = Unit
 

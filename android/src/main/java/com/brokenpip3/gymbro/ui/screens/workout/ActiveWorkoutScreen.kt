@@ -2,9 +2,11 @@
 
 package com.brokenpip3.gymbro.ui.screens.workout
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,6 +28,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -35,11 +41,13 @@ import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -94,6 +102,8 @@ fun WorkoutRoute(
         onAddSet = viewModel::addSet,
         onAddEmptySet = viewModel::addEmptySet,
         onDeleteSet = viewModel::deleteSet,
+        onUndoDeleteSet = viewModel::undoDeleteSet,
+        onDismissDeleteUndo = viewModel::dismissDeleteUndo,
         onDeleteExercise = viewModel::deleteExerciseResult,
         onUpdateExerciseNotes = viewModel::updateExerciseNotes,
         onUpdateWorkoutNotes = viewModel::updateWorkoutNotes,
@@ -136,6 +146,8 @@ fun ActiveWorkoutScreen(
     onAddSet: (Long, Int?, Double?, Long?, Double?) -> Unit = { _, _, _, _, _ -> },
     onAddEmptySet: (Long) -> Unit = {},
     onDeleteSet: (Long) -> Unit = {},
+    onUndoDeleteSet: () -> Unit = {},
+    onDismissDeleteUndo: () -> Unit = {},
     onDeleteExercise: (Long) -> Unit = {},
     onUpdateExerciseNotes: (Long, String) -> Unit = { _, _ -> },
     onUpdateWorkoutNotes: (String) -> Unit = {},
@@ -190,7 +202,10 @@ fun ActiveWorkoutScreen(
             ActiveWorkoutContent(
                 workout = activeWorkout,
                 errorMessage = uiState.errorMessage,
+                deletedSetForUndo = uiState.deletedSetForUndo,
                 actions = actions,
+                onUndoDeleteSet = onUndoDeleteSet,
+                onDismissDeleteUndo = onDismissDeleteUndo,
                 modifier = modifier,
             )
         }
@@ -237,13 +252,16 @@ private data class ActiveWorkoutActions(
 private fun ActiveWorkoutContent(
     workout: ActiveWorkoutUiModel,
     errorMessage: String?,
+    deletedSetForUndo: DeletedSetSnapshot?,
     actions: ActiveWorkoutActions,
+    onUndoDeleteSet: () -> Unit,
+    onDismissDeleteUndo: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var nowMillis by remember(workout.startedAt) { mutableStateOf(System.currentTimeMillis()) }
     var editRequest by remember { mutableStateOf<SetEditRequest?>(null) }
-    var setNotesEditRequest by remember { mutableStateOf<SetNotesEditRequest?>(null) }
     var notesEditRequest by remember { mutableStateOf<ExerciseNotesEditRequest?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
     var isWorkoutNotesDialogVisible by remember { mutableStateOf(false) }
     var isFinishConfirmationVisible by remember { mutableStateOf(false) }
     var isDiscardConfirmationVisible by remember { mutableStateOf(false) }
@@ -254,39 +272,61 @@ private fun ActiveWorkoutContent(
         }
     }
 
-    LazyColumn(
-        modifier = modifier.fillMaxSize().testTag("active-workout-list"),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        item {
-            ActiveWorkoutHeader(
-                workout = workout,
-                nowMillis = nowMillis,
-                errorMessage = errorMessage,
-                onEditWorkoutNotes = { isWorkoutNotesDialogVisible = true },
-                onAddExercise = actions.onShowAddExerciseDialog,
-            )
+    LaunchedEffect(deletedSetForUndo) {
+        if (deletedSetForUndo != null) {
+            val result =
+                snackbarHostState.showSnackbar(
+                    message = "Set deleted",
+                    actionLabel = "Undo",
+                    duration = SnackbarDuration.Short,
+                )
+            if (result == SnackbarResult.ActionPerformed) {
+                onUndoDeleteSet()
+            } else {
+                onDismissDeleteUndo()
+            }
+        }
+    }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().testTag("active-workout-list"),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item {
+                ActiveWorkoutHeader(
+                    workout = workout,
+                    nowMillis = nowMillis,
+                    errorMessage = errorMessage,
+                    onEditWorkoutNotes = { isWorkoutNotesDialogVisible = true },
+                    onAddExercise = actions.onShowAddExerciseDialog,
+                )
+            }
+
+            items(
+                items = workout.exercises,
+                key = { exercise -> exercise.exerciseResultId },
+            ) { exercise ->
+                DismissibleExerciseItem(
+                    exercise = exercise,
+                    actions = actions,
+                    onEditSet = { request -> editRequest = request },
+                    onEditExerciseNotes = { request -> notesEditRequest = request },
+                )
+            }
+
+            item {
+                WorkoutActionRow(
+                    onFinishWorkout = { isFinishConfirmationVisible = true },
+                    onDiscardWorkout = { isDiscardConfirmationVisible = true },
+                )
+            }
         }
 
-        items(
-            items = workout.exercises,
-            key = { exercise -> exercise.exerciseResultId },
-        ) { exercise ->
-            DismissibleExerciseItem(
-                exercise = exercise,
-                actions = actions,
-                onEditSet = { request -> editRequest = request },
-                onEditSetNotes = { request -> setNotesEditRequest = request },
-                onEditExerciseNotes = { request -> notesEditRequest = request },
-            )
-        }
-
-        item {
-            WorkoutActionRow(
-                onFinishWorkout = { isFinishConfirmationVisible = true },
-                onDiscardWorkout = { isDiscardConfirmationVisible = true },
-            )
-        }
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp),
+        )
     }
 
     if (isFinishConfirmationVisible) {
@@ -313,20 +353,14 @@ private fun ActiveWorkoutContent(
         SetEditDialog(
             request = request,
             onDismiss = { editRequest = null },
-            onSave = { setId, repsText, weightText, minutesText, secondsText, distanceText ->
-                actions.onUpdateSetMetrics(setId, repsText, weightText, minutesText, secondsText, distanceText)
+            onDelete = {
+                actions.onDeleteSet(request.setId)
                 editRequest = null
             },
-        )
-    }
-
-    setNotesEditRequest?.let { request ->
-        SetNotesDialog(
-            request = request,
-            onDismiss = { setNotesEditRequest = null },
-            onSave = { setId, notesText ->
+            onSave = { setId, repsText, weightText, minutesText, secondsText, distanceText, notesText ->
+                actions.onUpdateSetMetrics(setId, repsText, weightText, minutesText, secondsText, distanceText)
                 actions.onUpdateSetNotes(setId, notesText)
-                setNotesEditRequest = null
+                editRequest = null
             },
         )
     }
@@ -527,7 +561,6 @@ private fun DismissibleExerciseItem(
     exercise: WorkoutExerciseUiModel,
     actions: ActiveWorkoutActions,
     onEditSet: (SetEditRequest) -> Unit,
-    onEditSetNotes: (SetNotesEditRequest) -> Unit,
     onEditExerciseNotes: (ExerciseNotesEditRequest) -> Unit,
 ) {
     @Suppress("DEPRECATION")
@@ -572,7 +605,6 @@ private fun DismissibleExerciseItem(
                 exercise = exercise,
                 actions = actions,
                 onEditSet = onEditSet,
-                onEditSetNotes = onEditSetNotes,
                 onEditExerciseNotes = onEditExerciseNotes,
             )
         }
@@ -585,7 +617,6 @@ private fun ExerciseRoutineSection(
     exercise: WorkoutExerciseUiModel,
     actions: ActiveWorkoutActions,
     onEditSet: (SetEditRequest) -> Unit,
-    onEditSetNotes: (SetNotesEditRequest) -> Unit,
     onEditExerciseNotes: (ExerciseNotesEditRequest) -> Unit,
 ) {
     Column(
@@ -603,71 +634,47 @@ private fun ExerciseRoutineSection(
 
         RoutineHeaderRow(trackingMode = exercise.trackingMode)
 
-        exercise.sets.forEach { set ->
-            @Suppress("DEPRECATION")
-            val dismissState =
-                rememberSwipeToDismissBoxState(
-                    confirmValueChange = { value ->
-                        if (value != SwipeToDismissBoxValue.Settled) {
-                            actions.onDeleteSet(set.id)
-                        }
-                        false
+        exercise.sets.forEachIndexed { index, set ->
+            key(setSwipeCompositionKey(set.id)) {
+                @Suppress("DEPRECATION")
+                val dismissState =
+                    rememberSwipeToDismissBoxState(
+                        confirmValueChange = { value ->
+                            when (value) {
+                                SwipeToDismissBoxValue.EndToStart -> onEditSet(setEditRequest(exercise, set))
+                                SwipeToDismissBoxValue.StartToEnd -> actions.onDeleteSet(set.id)
+                                SwipeToDismissBoxValue.Settled -> Unit
+                            }
+                            false
+                        },
+                    )
+                SwipeToDismissBox(
+                    state = dismissState,
+                    enableDismissFromStartToEnd = true,
+                    enableDismissFromEndToStart = true,
+                    backgroundContent = {
+                        SetSwipeBackground(action = setSwipeAction(dismissState.dismissDirection))
                     },
-                )
-            SwipeToDismissBox(
-                state = dismissState,
-                enableDismissFromStartToEnd = true,
-                enableDismissFromEndToStart = true,
-                backgroundContent = {
-                    Row(
-                        modifier =
-                            Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .padding(horizontal = 20.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "Delete",
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.labelLarge,
+                ) {
+                    Surface(color = MaterialTheme.colorScheme.surface) {
+                        RoutineSetRow(
+                            exercise = exercise,
+                            set = set,
+                            setNumber = displayedSetNumber(index),
+                            onEditSet = onEditSet,
+                            onUpdateSetCompletion = actions.onUpdateSetCompletion,
                         )
                     }
-                },
-            ) {
-                RoutineSetRow(
-                    exercise = exercise,
-                    set = set,
-                    onEditSet = onEditSet,
-                    onEditSetNotes = onEditSetNotes,
-                    onUpdateSetCompletion = actions.onUpdateSetCompletion,
-                )
+                }
             }
         }
 
         AddSetControls(
             exercise = exercise,
             onAddSet = actions.onAddSet,
+            onAddEmptySet = actions.onAddEmptySet,
+            onCopyPrevious = actions.onAddSetRow,
         )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            TextButton(
-                onClick = { actions.onAddEmptySet(exercise.exerciseResultId) },
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(text = ADD_SET_ROW_LABEL)
-            }
-
-            TextButton(
-                onClick = { actions.onAddSetRow(exercise.exerciseResultId) },
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(text = "Copy Previous")
-            }
-        }
     }
 }
 
@@ -974,47 +981,6 @@ private fun WorkoutNotesDialog(
 }
 
 @Composable
-private fun SetNotesDialog(
-    request: SetNotesEditRequest,
-    onDismiss: () -> Unit,
-    onSave: (Long, String) -> Unit,
-) {
-    var notesText by remember(request.setId) { mutableStateOf(request.notes.orEmpty()) }
-    val keyboardDismissal = rememberKeyboardDismissal()
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(text = "Set ${request.setNumber} notes") },
-        text = {
-            OutlinedTextField(
-                value = notesText,
-                onValueChange = { notesText = it },
-                label = { Text(text = "Set notes") },
-                minLines = 4,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { keyboardDismissal.dismiss() }),
-                modifier = Modifier.fillMaxWidth(),
-            )
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    keyboardDismissal.dismiss()
-                    onSave(request.setId, notesText)
-                },
-            ) {
-                Text(text = "Save")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = "Cancel")
-            }
-        },
-    )
-}
-
-@Composable
 private fun RoutineHeaderRow(trackingMode: TrackingMode) {
     Row(
         modifier =
@@ -1042,12 +1008,91 @@ private fun RoutineHeaderRow(trackingMode: TrackingMode) {
     }
 }
 
+internal fun displayedSetNumber(setIndex: Int): Int = setIndex + 1
+
+internal enum class SetSwipeAction {
+    Delete,
+    Edit,
+}
+
+internal fun setSwipeAction(direction: SwipeToDismissBoxValue): SetSwipeAction? =
+    when (direction) {
+        SwipeToDismissBoxValue.EndToStart -> SetSwipeAction.Edit
+        SwipeToDismissBoxValue.StartToEnd -> SetSwipeAction.Delete
+        SwipeToDismissBoxValue.Settled -> null
+    }
+
+internal fun setSwipeCompositionKey(setId: Long): Long = setId
+
+@Composable
+private fun SetSwipeBackground(action: SetSwipeAction?) {
+    val visibility by
+        animateFloatAsState(
+            targetValue = if (action == null) 0f else 1f,
+            label = "set-swipe-action-visibility",
+        )
+    val isDelete = action == SetSwipeAction.Delete
+    val icon = if (isDelete) GymbroIcons.Delete else GymbroIcons.Edit
+    val actionLabel = if (isDelete) "Delete" else "Edit"
+    val contentDescription = if (isDelete) "Delete set" else "Edit set"
+    val tint = if (isDelete) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+    val backgroundColor =
+        if (isDelete) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.primaryContainer
+
+    Row(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(backgroundColor)
+                .padding(horizontal = 16.dp),
+        horizontalArrangement = if (isDelete) Arrangement.End else Arrangement.Start,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            modifier =
+                Modifier.graphicsLayer {
+                    alpha = visibility
+                    scaleX = 0.8f + (0.2f * visibility)
+                    scaleY = 0.8f + (0.2f * visibility)
+                },
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = tint,
+            )
+            Text(
+                text = actionLabel,
+                color = tint,
+                style = MaterialTheme.typography.labelLarge,
+            )
+        }
+    }
+}
+
+private fun setEditRequest(
+    exercise: WorkoutExerciseUiModel,
+    set: WorkoutSetUiModel,
+): SetEditRequest =
+    SetEditRequest(
+        setId = set.id,
+        exerciseResultId = exercise.exerciseResultId,
+        trackingMode = exercise.trackingMode,
+        reps = set.reps,
+        weight = set.weight,
+        durationSeconds = set.durationSeconds,
+        distance = set.distance,
+        notes = set.notes,
+    )
+
 @Composable
 private fun RoutineSetRow(
     exercise: WorkoutExerciseUiModel,
     set: WorkoutSetUiModel,
+    setNumber: Int,
     onEditSet: (SetEditRequest) -> Unit,
-    onEditSetNotes: (SetNotesEditRequest) -> Unit,
     onUpdateSetCompletion: (Long, Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -1061,26 +1106,24 @@ private fun RoutineSetRow(
                     .fillMaxWidth()
                     .heightIn(min = 48.dp)
                     .clickable {
-                        onEditSet(
-                            SetEditRequest(
-                                setId = set.id,
-                                exerciseResultId = exercise.exerciseResultId,
-                                trackingMode = exercise.trackingMode,
-                                reps = set.reps,
-                                weight = set.weight,
-                                durationSeconds = set.durationSeconds,
-                                distance = set.distance,
-                            ),
-                        )
+                        onEditSet(setEditRequest(exercise, set))
                     }.padding(horizontal = 4.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = (set.setOrder + 1).toString(),
+                text = setNumber.toString(),
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.width(28.dp),
             )
+            if (!set.notes.isNullOrBlank()) {
+                Icon(
+                    imageVector = GymbroIcons.Note,
+                    contentDescription = "Set has a note",
+                    tint = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.width(20.dp),
+                )
+            }
             set.metricCells(exercise.trackingMode).forEach { value ->
                 Text(
                     text = value,
@@ -1097,48 +1140,6 @@ private fun RoutineSetRow(
                         .testTag("set-${set.id}-completion"),
             )
         }
-        SetNotesRow(
-            set = set,
-            onEditSetNotes = onEditSetNotes,
-        )
-    }
-}
-
-@Composable
-private fun SetNotesRow(
-    set: WorkoutSetUiModel,
-    onEditSetNotes: (SetNotesEditRequest) -> Unit,
-) {
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(start = 32.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        set.notes?.let { notes ->
-            Text(
-                text = notes,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-        }
-        TextButton(
-            onClick = {
-                onEditSetNotes(
-                    SetNotesEditRequest(
-                        setId = set.id,
-                        setNumber = set.setOrder + 1,
-                        notes = set.notes,
-                    ),
-                )
-            },
-        ) {
-            Text(text = "Set note")
-        }
     }
 }
 
@@ -1146,6 +1147,7 @@ private fun SetNotesRow(
 private fun SetEditDialog(
     request: SetEditRequest,
     onDismiss: () -> Unit,
+    onDelete: () -> Unit,
     onSave: (
         setId: Long,
         repsText: String,
@@ -1153,6 +1155,7 @@ private fun SetEditDialog(
         minutesText: String,
         secondsText: String,
         distanceText: String,
+        notesText: String,
     ) -> Unit,
 ) {
     var repsText by remember(request.setId) { mutableStateOf(request.reps?.toString().orEmpty()) }
@@ -1164,6 +1167,7 @@ private fun SetEditDialog(
         mutableStateOf(request.durationSeconds?.let { (it % 60L).toString() }.orEmpty())
     }
     var distanceText by remember(request.setId) { mutableStateOf(request.distance?.trimmed().orEmpty()) }
+    var notesText by remember(request.setId) { mutableStateOf(request.notes.orEmpty()) }
     val keyboardDismissal = rememberKeyboardDismissal()
 
     AlertDialog(
@@ -1219,23 +1223,48 @@ private fun SetEditDialog(
                         )
                     }
                 }
+                SetEditNotesField(notesText, { notesText = it })
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
                     keyboardDismissal.dismiss()
-                    onSave(request.setId, repsText, weightText, minutesText, secondsText, distanceText)
+                    onSave(request.setId, repsText, weightText, minutesText, secondsText, distanceText, notesText)
                 },
             ) {
                 Text(text = "Save")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = "Cancel")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onDismiss) {
+                    Text(text = "Cancel")
+                }
+                TextButton(
+                    onClick = {
+                        keyboardDismissal.dismiss()
+                        onDelete()
+                    },
+                ) {
+                    Text(text = "Delete set", color = MaterialTheme.colorScheme.error)
+                }
             }
         },
+    )
+}
+
+@Composable
+private fun SetEditNotesField(
+    value: String,
+    onValueChange: (String) -> Unit,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(text = "Notes") },
+        minLines = 2,
+        modifier = Modifier.fillMaxWidth().testTag("workout-edit-input-Notes"),
     )
 }
 
@@ -1259,8 +1288,6 @@ private fun RoutineEditField(
         modifier = modifier.fillMaxWidth().testTag("workout-edit-input-$label"),
     )
 }
-
-internal const val ADD_SET_ROW_LABEL: String = "Add Set"
 
 internal enum class RoutineHeaderActionPlacement {
     Inline,

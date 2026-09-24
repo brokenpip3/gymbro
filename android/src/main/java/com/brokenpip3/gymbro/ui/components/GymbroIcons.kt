@@ -218,6 +218,34 @@ object GymbroIcons {
                 verticalLineTo(16f)
             }
         }
+
+    val Note: ImageVector =
+        icon("Note") {
+            path(
+                stroke = SolidColor(Color.Black),
+                strokeLineWidth = 1.8f,
+                strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
+                fill = null,
+            ) {
+                moveTo(6f, 4.5f)
+                horizontalLineTo(18f)
+                curveTo(18.8f, 4.5f, 19.5f, 5.2f, 19.5f, 6f)
+                verticalLineTo(18f)
+                curveTo(19.5f, 18.8f, 18.8f, 19.5f, 18f, 19.5f)
+                horizontalLineTo(6f)
+                curveTo(5.2f, 19.5f, 4.5f, 18.8f, 4.5f, 18f)
+                verticalLineTo(6f)
+                curveTo(4.5f, 5.2f, 5.2f, 4.5f, 6f, 4.5f)
+                close()
+                moveTo(8f, 9f)
+                horizontalLineTo(16f)
+                moveTo(8f, 12f)
+                horizontalLineTo(16f)
+                moveTo(8f, 15f)
+                horizontalLineTo(13f)
+            }
+        }
 }
 
 private fun icon(

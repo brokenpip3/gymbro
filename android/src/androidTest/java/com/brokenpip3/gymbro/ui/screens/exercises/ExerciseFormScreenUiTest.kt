@@ -35,6 +35,7 @@ class ExerciseFormScreenUiTest {
                     ),
                 onNameChange = {},
                 onNotesChange = {},
+                onCategoryChange = {},
                 onTrackingModeChange = {},
                 onSave = {},
             )
@@ -71,6 +72,7 @@ class ExerciseFormScreenUiTest {
                     notes = it
                     formState = formState.copy(notes = it)
                 },
+                onCategoryChange = {},
                 onTrackingModeChange = {},
                 onSave = { saved = true },
             )

@@ -6,10 +6,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,22 +31,59 @@ import com.brokenpip3.gymbro.ui.rememberKeyboardDismissal
 internal fun AddSetControls(
     exercise: WorkoutExerciseUiModel,
     onAddSet: (Long, Int?, Double?, Long?, Double?) -> Unit,
+    onAddEmptySet: (Long) -> Unit,
+    onCopyPrevious: (Long) -> Unit,
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val stackAction = shouldStackSetAction(maxWidth.value.toInt())
         when (exercise.trackingMode) {
-            TrackingMode.Strength -> StrengthSetControls(exercise.exerciseResultId, stackAction, onAddSet)
-            TrackingMode.Bodyweight -> BodyweightSetControls(exercise.exerciseResultId, stackAction, onAddSet)
-            TrackingMode.Timed -> TimedSetControls(exercise.exerciseResultId, stackAction, onAddSet)
+            TrackingMode.Strength ->
+                StrengthSetControls(
+                    exerciseResultId = exercise.exerciseResultId,
+                    stackAction = stackAction,
+                    canCopyPrevious = exercise.sets.isNotEmpty(),
+                    onAddSet = onAddSet,
+                    onAddEmptySet = onAddEmptySet,
+                    onCopyPrevious = onCopyPrevious,
+                )
+            TrackingMode.Bodyweight ->
+                BodyweightSetControls(
+                    exerciseResultId = exercise.exerciseResultId,
+                    stackAction = stackAction,
+                    canCopyPrevious = exercise.sets.isNotEmpty(),
+                    onAddSet = onAddSet,
+                    onAddEmptySet = onAddEmptySet,
+                    onCopyPrevious = onCopyPrevious,
+                )
+            TrackingMode.Timed ->
+                TimedSetControls(
+                    exerciseResultId = exercise.exerciseResultId,
+                    stackAction = stackAction,
+                    canCopyPrevious = exercise.sets.isNotEmpty(),
+                    onAddSet = onAddSet,
+                    onAddEmptySet = onAddEmptySet,
+                    onCopyPrevious = onCopyPrevious,
+                )
         }
     }
 }
+
+internal enum class SetInputAction {
+    AddEmpty,
+    AddMetrics,
+}
+
+internal fun setInputAction(vararg inputValues: String): SetInputAction =
+    if (inputValues.all { value -> value.isBlank() }) SetInputAction.AddEmpty else SetInputAction.AddMetrics
 
 @Composable
 private fun StrengthSetControls(
     exerciseResultId: Long,
     stackAction: Boolean,
+    canCopyPrevious: Boolean,
     onAddSet: (Long, Int?, Double?, Long?, Double?) -> Unit,
+    onAddEmptySet: (Long) -> Unit,
+    onCopyPrevious: (Long) -> Unit,
 ) {
     var reps by rememberSaveable(exerciseResultId) { mutableStateOf("") }
     var weight by rememberSaveable(exerciseResultId) { mutableStateOf("") }
@@ -54,15 +91,23 @@ private fun StrengthSetControls(
         mutableStateOf(SetInputParseResult())
     }
     val keyboardDismissal = rememberKeyboardDismissal()
+    val inputAction = setInputAction(reps, weight)
 
     val addSet = {
-        val result = parseStrengthSetInput(reps, weight)
-        parseResult = result
-        result.metrics?.let { metrics ->
-            onAddSet(exerciseResultId, metrics.reps, metrics.weight, metrics.durationSeconds, metrics.distance)
+        if (inputAction == SetInputAction.AddEmpty) {
+            onAddEmptySet(exerciseResultId)
             reps = ""
             weight = ""
             parseResult = SetInputParseResult()
+        } else {
+            val result = parseStrengthSetInput(reps, weight)
+            parseResult = result
+            result.metrics?.let { metrics ->
+                onAddSet(exerciseResultId, metrics.reps, metrics.weight, metrics.durationSeconds, metrics.distance)
+                reps = ""
+                weight = ""
+                parseResult = SetInputParseResult()
+            }
         }
         keyboardDismissal.dismiss()
         Unit
@@ -86,25 +131,28 @@ private fun StrengthSetControls(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 content = fields,
             )
-            Button(
-                onClick = addSet,
-                modifier = Modifier.fillMaxWidth().testTag("workout-done-$exerciseResultId"),
-            ) {
-                Text(text = "Add")
-            }
+            SetActionButtons(
+                exerciseResultId = exerciseResultId,
+                canCopyPrevious = canCopyPrevious,
+                addLabel = if (inputAction == SetInputAction.AddEmpty) "Add empty" else "Add",
+                onAdd = addSet,
+                onCopyPrevious = { onCopyPrevious(exerciseResultId) },
+            )
         }
     } else {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            fields()
-            Button(
-                onClick = addSet,
-                modifier = Modifier.width(88.dp).testTag("workout-done-$exerciseResultId"),
-            ) {
-                Text(text = "Add")
-            }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                content = fields,
+            )
+            SetActionButtons(
+                exerciseResultId = exerciseResultId,
+                canCopyPrevious = canCopyPrevious,
+                addLabel = if (inputAction == SetInputAction.AddEmpty) "Add empty" else "Add",
+                onAdd = addSet,
+                onCopyPrevious = { onCopyPrevious(exerciseResultId) },
+            )
         }
     }
 }
@@ -113,21 +161,31 @@ private fun StrengthSetControls(
 private fun BodyweightSetControls(
     exerciseResultId: Long,
     stackAction: Boolean,
+    canCopyPrevious: Boolean,
     onAddSet: (Long, Int?, Double?, Long?, Double?) -> Unit,
+    onAddEmptySet: (Long) -> Unit,
+    onCopyPrevious: (Long) -> Unit,
 ) {
     var reps by rememberSaveable(exerciseResultId) { mutableStateOf("") }
     var parseResult by rememberSaveable(exerciseResultId, stateSaver = SetInputParseResultSaver) {
         mutableStateOf(SetInputParseResult())
     }
     val keyboardDismissal = rememberKeyboardDismissal()
+    val inputAction = setInputAction(reps)
 
     val addSet = {
-        val result = parseBodyweightSetInput(reps)
-        parseResult = result
-        result.metrics?.let { metrics ->
-            onAddSet(exerciseResultId, metrics.reps, metrics.weight, metrics.durationSeconds, metrics.distance)
+        if (inputAction == SetInputAction.AddEmpty) {
+            onAddEmptySet(exerciseResultId)
             reps = ""
             parseResult = SetInputParseResult()
+        } else {
+            val result = parseBodyweightSetInput(reps)
+            parseResult = result
+            result.metrics?.let { metrics ->
+                onAddSet(exerciseResultId, metrics.reps, metrics.weight, metrics.durationSeconds, metrics.distance)
+                reps = ""
+                parseResult = SetInputParseResult()
+            }
         }
         keyboardDismissal.dismiss()
         Unit
@@ -135,25 +193,24 @@ private fun BodyweightSetControls(
     if (stackAction) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             NumericField(reps, { reps = it }, "Reps", KeyboardType.Number, parseResult.repsError)
-            Button(
-                onClick = addSet,
-                modifier = Modifier.fillMaxWidth().testTag("workout-done-$exerciseResultId"),
-            ) {
-                Text(text = "Add")
-            }
+            SetActionButtons(
+                exerciseResultId = exerciseResultId,
+                canCopyPrevious = canCopyPrevious,
+                addLabel = if (inputAction == SetInputAction.AddEmpty) "Add empty" else "Add",
+                onAdd = addSet,
+                onCopyPrevious = { onCopyPrevious(exerciseResultId) },
+            )
         }
     } else {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            NumericField(reps, { reps = it }, "Reps", KeyboardType.Number, parseResult.repsError, Modifier.weight(1f))
-            Button(
-                onClick = addSet,
-                modifier = Modifier.width(88.dp).testTag("workout-done-$exerciseResultId"),
-            ) {
-                Text(text = "Add")
-            }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            NumericField(reps, { reps = it }, "Reps", KeyboardType.Number, parseResult.repsError)
+            SetActionButtons(
+                exerciseResultId = exerciseResultId,
+                canCopyPrevious = canCopyPrevious,
+                addLabel = if (inputAction == SetInputAction.AddEmpty) "Add empty" else "Add",
+                onAdd = addSet,
+                onCopyPrevious = { onCopyPrevious(exerciseResultId) },
+            )
         }
     }
 }
@@ -162,7 +219,10 @@ private fun BodyweightSetControls(
 private fun TimedSetControls(
     exerciseResultId: Long,
     stackAction: Boolean,
+    canCopyPrevious: Boolean,
     onAddSet: (Long, Int?, Double?, Long?, Double?) -> Unit,
+    onAddEmptySet: (Long) -> Unit,
+    onCopyPrevious: (Long) -> Unit,
 ) {
     var minutes by rememberSaveable(exerciseResultId) { mutableStateOf("") }
     var seconds by rememberSaveable(exerciseResultId) { mutableStateOf("") }
@@ -171,22 +231,31 @@ private fun TimedSetControls(
         mutableStateOf(SetInputParseResult())
     }
     val keyboardDismissal = rememberKeyboardDismissal()
+    val inputAction = setInputAction(minutes, seconds, distance)
 
     val addSet = {
-        val result = parseTimedSetInput(minutes, seconds, distance)
-        parseResult = result
-        result.metrics?.let { metrics ->
-            onAddSet(
-                exerciseResultId,
-                metrics.reps,
-                metrics.weight,
-                metrics.durationSeconds,
-                metrics.distance,
-            )
+        if (inputAction == SetInputAction.AddEmpty) {
+            onAddEmptySet(exerciseResultId)
             minutes = ""
             seconds = ""
             distance = ""
             parseResult = SetInputParseResult()
+        } else {
+            val result = parseTimedSetInput(minutes, seconds, distance)
+            parseResult = result
+            result.metrics?.let { metrics ->
+                onAddSet(
+                    exerciseResultId,
+                    metrics.reps,
+                    metrics.weight,
+                    metrics.durationSeconds,
+                    metrics.distance,
+                )
+                minutes = ""
+                seconds = ""
+                distance = ""
+                parseResult = SetInputParseResult()
+            }
         }
         keyboardDismissal.dismiss()
         Unit
@@ -223,32 +292,49 @@ private fun TimedSetControls(
                 parseResult.distanceError,
                 Modifier.fillMaxWidth(),
             )
-            Button(
-                onClick = addSet,
-                modifier = Modifier.fillMaxWidth().testTag("workout-done-$exerciseResultId"),
-            ) {
-                Text(text = "Add")
-            }
         } else {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                NumericField(
-                    distance,
-                    { distance = it },
-                    "Distance",
-                    KeyboardType.Decimal,
-                    parseResult.distanceError,
-                    Modifier.weight(1f),
-                )
-                Button(
-                    onClick = addSet,
-                    modifier = Modifier.width(88.dp).testTag("workout-done-$exerciseResultId"),
-                ) {
-                    Text(text = "Add")
-                }
-            }
+            NumericField(
+                distance,
+                { distance = it },
+                "Distance",
+                KeyboardType.Decimal,
+                parseResult.distanceError,
+            )
+        }
+        SetActionButtons(
+            exerciseResultId = exerciseResultId,
+            canCopyPrevious = canCopyPrevious,
+            addLabel = if (inputAction == SetInputAction.AddEmpty) "Add empty" else "Add",
+            onAdd = addSet,
+            onCopyPrevious = { onCopyPrevious(exerciseResultId) },
+        )
+    }
+}
+
+@Composable
+private fun SetActionButtons(
+    exerciseResultId: Long,
+    canCopyPrevious: Boolean,
+    addLabel: String,
+    onAdd: () -> Unit,
+    onCopyPrevious: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        OutlinedButton(
+            onClick = onCopyPrevious,
+            enabled = canCopyPrevious,
+            modifier = Modifier.weight(1f),
+        ) {
+            Text(text = "Copy previous")
+        }
+        Button(
+            onClick = onAdd,
+            modifier = Modifier.weight(1f).testTag("workout-done-$exerciseResultId"),
+        ) {
+            Text(text = addLabel)
         }
     }
 }
