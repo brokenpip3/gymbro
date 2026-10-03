@@ -53,15 +53,6 @@ android {
         includeInBundle = false
     }
 
-    splits {
-        abi {
-            isEnable = true
-            reset()
-            include("arm64-v8a", "x86_64")
-            isUniversalApk = false
-        }
-    }
-
     signingConfigs {
         create("release") {
             val keystorePath = System.getenv("GYMBRO_KEYSTORE_PATH")

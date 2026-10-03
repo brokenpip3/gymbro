@@ -93,6 +93,9 @@ jobs:
             base="$(basename "$apk")"
             variant="${base#android-}"
             variant="${variant%-release.apk}"
+            if [ "$variant" = "$base" ]; then
+              variant="universal"
+            fi
             cp "$apk" "dist/gymbro-v${version}-${variant}-fdroid.apk"
             apk_count=$((apk_count + 1))
           done

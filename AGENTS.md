@@ -48,7 +48,7 @@ Demo data is exposed only in debug builds through Settings > Developer tools. It
 ## Release
 
 - Version is stored in `android/version.properties`; use `just version-bump <version>`.
-- Release builds use R8, resource shrinking, and ABI splits for `arm64-v8a` and `x86_64`.
+- Release builds use R8 and resource shrinking and produce a single universal APK covering all ABIs.
 - Never publish the unsigned APKs produced by a plain `assembleRelease`.
 - Release tags must be `v<VERSION_NAME>`. The workflow runs lint and JVM tests before building and verifies APK signatures.
 

@@ -51,6 +51,9 @@ build-release-apk:
         base=$(basename "$apk"); \
         tmp="${base#android-}"; \
         tmp="${tmp/-release/}"; \
+        if [ "$tmp" = "$base" ]; then \
+            tmp="universal"; \
+        fi; \
         new_name="gymbro-v$VERSION-$tmp"; \
         cp "$apk" "dist/$new_name"; \
         echo "Release APK created at: dist/$new_name"; \
