@@ -87,16 +87,10 @@ jobs:
           mkdir -p dist
           version="$(sed -n 's/^VERSION_NAME=//p' android/version.properties)"
           apk_count=0
-          for apk in android/build/outputs/apk/release/android*release*.apk; do
+          for apk in android/build/outputs/apk/release/*.apk; do
             test -f "$apk"
             "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" verify "$apk"
-            base="$(basename "$apk")"
-            variant="${base#android-}"
-            variant="${variant%-release.apk}"
-            if [ "$variant" = "$base" ]; then
-              variant="universal"
-            fi
-            cp "$apk" "dist/gymbro-v${version}-${variant}-fdroid.apk"
+            cp "$apk" "dist/gymbro-v${version}.apk"
             apk_count=$((apk_count + 1))
           done
           test "$apk_count" -gt 0
@@ -105,12 +99,12 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: gymbro-release-apks-fdroid
-          path: dist/*-fdroid.apk
+          path: dist/*.apk
           if-no-files-found: error
 
       - name: Attach F-Droid APKs to release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v2
         with:
-          files: dist/*-fdroid.apk
+          files: dist/*.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

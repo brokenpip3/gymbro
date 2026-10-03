@@ -47,13 +47,7 @@ build-release-apk:
     @VERSION=$(grep 'VERSION_NAME=' android/version.properties | cut -d'=' -f2); \
     for apk in android/build/outputs/apk/release/*.apk; do \
         [ -f "$apk" ] || continue; \
-        base=$(basename "$apk"); \
-        tmp="${base#android-}"; \
-        tmp="${tmp/-release/}"; \
-        if [ "$tmp" = "$base" ]; then \
-            tmp="universal"; \
-        fi; \
-        new_name="gymbro-v$VERSION-$tmp"; \
+        new_name="gymbro-v$VERSION.apk"; \
         cp "$apk" "dist/$new_name"; \
         echo "Release APK created at: dist/$new_name"; \
     done
