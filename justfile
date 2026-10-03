@@ -10,23 +10,22 @@ test:
 lint:
     ./gradlew :android:lintDebug
 
-# install debug apk on a connected device/emulator (arch-aware)
+# install debug apk on a connected device/emulator (universal)
 install-debug:
     @command -v adb >/dev/null 2>&1 || { echo >&2 "adb is required but not installed."; exit 1; }
     ./gradlew :android:assembleDebug
-    @for apk in android/build/outputs/apk/debug/android-*-debug.apk; do \
-        if [ -f "$apk" ]; then \
-            adb install -r "$apk"; \
-            exit 0; \
-        fi; \
-    done; \
-    echo "No arch-split debug apk found."; exit 1
+    @apk=android/build/outputs/apk/debug/android-debug.apk; \
+    if [ -f "$apk" ]; then \
+        adb install -r "$apk"; \
+        exit 0; \
+    fi; \
+    echo "No debug apk found."; exit 1
 
 # show connected Android devices
 devices:
     adb devices
 
-# build signed release APK (arch-split; set GYMBRO_KEYSTORE_* env vars)
+# build signed release APK (universal; set GYMBRO_KEYSTORE_* env vars)
 build-release-apk:
     @if [ -n "${GYMBRO_KEYSTORE_BASE64:-}" ]; then \
         echo "Decoding release keystore..."; \

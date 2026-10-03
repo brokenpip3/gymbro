@@ -87,7 +87,7 @@ jobs:
           mkdir -p dist
           version="$(sed -n 's/^VERSION_NAME=//p' android/version.properties)"
           apk_count=0
-          for apk in android/build/outputs/apk/release/android-*-release.apk; do
+          for apk in android/build/outputs/apk/release/android*release*.apk; do
             test -f "$apk"
             "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" verify "$apk"
             base="$(basename "$apk")"
