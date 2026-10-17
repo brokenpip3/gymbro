@@ -19,7 +19,9 @@ All workout data stays on the device. There is no account, network sync, or anal
 
 ### From F-Droid
 
-Not available on F-Droid yet, but it will be soon.
+[<img height="80" alt="Get it on F-Droid"
+src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png"
+/>](https://f-droid.org/app/com.brokenpip3.gymbro)
 
 ### Manually
 
