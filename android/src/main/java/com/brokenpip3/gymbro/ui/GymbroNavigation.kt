@@ -142,6 +142,7 @@ fun GymbroNavigation(
     exerciseListSettings: ExerciseListSettings,
     modifier: Modifier = Modifier,
 ) {
+    val keepScreenOnDuringWorkouts by exerciseListSettings.keepScreenOnDuringWorkouts.collectAsState()
     NavHost(
         navController = navController,
         startDestination = GymbroDestination.Schedules.route,
@@ -278,6 +279,7 @@ fun GymbroNavigation(
         composable(GymbroDestination.Workout.route) {
             WorkoutRoute(
                 repository = activeWorkoutSource,
+                keepScreenOnDuringWorkouts = keepScreenOnDuringWorkouts,
                 onWorkoutFinished = {
                     navController.returnToSchedules()
                 },

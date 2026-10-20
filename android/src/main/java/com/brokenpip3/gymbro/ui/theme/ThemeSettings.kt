@@ -16,6 +16,7 @@ interface ThemeSettings {
 
 class SharedPreferencesThemeSettings(
     context: Context,
+    private val onThemeModeChanged: (ThemeMode) -> Unit = {},
 ) : ThemeSettings {
     private val preferences =
         context.applicationContext.getSharedPreferences(
@@ -24,6 +25,10 @@ class SharedPreferencesThemeSettings(
         )
     private val _themeMode = MutableStateFlow(preferences.getThemeMode())
     private val _themePalette = MutableStateFlow(preferences.getThemePalette())
+
+    init {
+        onThemeModeChanged(_themeMode.value)
+    }
 
     override val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
     override val themePalette: StateFlow<ThemePalette> = _themePalette.asStateFlow()
@@ -34,6 +39,7 @@ class SharedPreferencesThemeSettings(
             .putString(THEME_PREFERENCE_KEY, themeMode.name)
             .apply()
         _themeMode.value = themeMode
+        onThemeModeChanged(themeMode)
     }
 
     override fun setThemePalette(themePalette: ThemePalette) {

@@ -45,9 +45,9 @@ jobs:
           path: |
             .gradle-home/caches
             .gradle-home/wrapper
-          key: v1-${{ runner.os }}-gradle-gymbro-ci-${{ hashFiles('flake.nix', 'flake.lock', '**/*.gradle*', '**/gradle-wrapper.properties') }}
+          key: v2-${{ runner.os }}-gradle-gymbro-ci-${{ hashFiles('flake.nix', 'flake.lock', 'justfile', 'gradle.properties', '**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
-            v1-${{ runner.os }}-gradle-gymbro-ci-
+            v2-${{ runner.os }}-gradle-gymbro-ci-
 
       - name: Run ${{ matrix.command }}
         run: nix develop .#gymbro-ci --no-update-lock-file --command just ${{ matrix.command }}

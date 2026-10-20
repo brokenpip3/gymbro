@@ -4,6 +4,6 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="#222222"
+        android:fillColor="@color/gymbro_splash_icon_foreground"
         android:pathData="M22,45h8v18h-8zM34,39h8v30h-8zM47,51h14v6h-14zM66,39h8v30h-8zM78,45h8v18h-8z" />
 </vector>

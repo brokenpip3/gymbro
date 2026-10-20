@@ -242,6 +242,7 @@ fun SettingsRoute(
     val themeMode by themeSettings.themeMode.collectAsState()
     val themePalette by themeSettings.themePalette.collectAsState()
     val groupByCategory by exerciseListSettings.groupExercisesByCategory.collectAsState()
+    val keepScreenOnDuringWorkouts by exerciseListSettings.keepScreenOnDuringWorkouts.collectAsState()
 
     val exportFileLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
@@ -260,6 +261,8 @@ fun SettingsRoute(
         onThemePaletteSelected = themeSettings::setThemePalette,
         groupByCategory = groupByCategory,
         onGroupByCategoryChange = exerciseListSettings::setGroupExercisesByCategory,
+        keepScreenOnDuringWorkouts = keepScreenOnDuringWorkouts,
+        onKeepScreenOnDuringWorkoutsChange = exerciseListSettings::setKeepScreenOnDuringWorkouts,
         onConfirmFileImport = viewModel::confirmFileImport,
         onDismissFileImportConfirmation = viewModel::dismissFileImportConfirmation,
         onExportFileScopeClick = { scope ->
@@ -282,6 +285,8 @@ fun SettingsScreen(
     onThemePaletteSelected: (ThemePalette) -> Unit = {},
     groupByCategory: Boolean = false,
     onGroupByCategoryChange: (Boolean) -> Unit = {},
+    keepScreenOnDuringWorkouts: Boolean = false,
+    onKeepScreenOnDuringWorkoutsChange: (Boolean) -> Unit = {},
     onConfirmFileImport: () -> Unit = {},
     onDismissFileImportConfirmation: () -> Unit = {},
     onExportFileScopeClick: (BackupScope) -> Unit = {},
@@ -333,6 +338,10 @@ fun SettingsScreen(
                 themePalette = themePalette,
                 onThemePaletteSelected = onThemePaletteSelected,
             )
+            SettingsWorkoutSection(
+                keepScreenOnDuringWorkouts = keepScreenOnDuringWorkouts,
+                onKeepScreenOnDuringWorkoutsChange = onKeepScreenOnDuringWorkoutsChange,
+            )
             SettingsExercisesSection(
                 groupByCategory = groupByCategory,
                 onGroupByCategoryChange = onGroupByCategoryChange,
@@ -379,6 +388,41 @@ fun SettingsScreen(
                         },
                 )
             },
+        )
+    }
+}
+
+@Composable
+private fun SettingsWorkoutSection(
+    keepScreenOnDuringWorkouts: Boolean,
+    onKeepScreenOnDuringWorkoutsChange: (Boolean) -> Unit,
+) {
+    SettingsSectionTitle(text = "Workout")
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
+            Text(
+                text = "Keep screen on during workouts",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                text =
+                    if (keepScreenOnDuringWorkouts) {
+                        "Screen stays on during workouts"
+                    } else {
+                        "Allow the screen to turn off normally"
+                    },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Switch(
+            checked = keepScreenOnDuringWorkouts,
+            onCheckedChange = onKeepScreenOnDuringWorkoutsChange,
+            modifier = Modifier.testTag("keep-screen-on-workouts"),
         )
     }
 }

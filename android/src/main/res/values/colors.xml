@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="gymbro_launcher_background">#EDEDEA</color>
+    <color name="gymbro_splash_background">#FAFBF8</color>
+    <color name="gymbro_splash_icon_background">#EDEDEA</color>
+    <color name="gymbro_splash_icon_foreground">#222222</color>
 </resources>
