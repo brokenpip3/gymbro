@@ -10,9 +10,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -66,6 +68,23 @@ class SettingsScreenUiTest {
         composeRule.onNodeWithText("Dark").performClick()
 
         composeRule.onNodeWithText("Selected theme: Dark").assertIsDisplayed()
+    }
+
+    @Test
+    fun keepScreenOnSettingCanBeEnabled() {
+        composeRule.setContent {
+            GymbroTheme {
+                var keepScreenOn by remember { mutableStateOf(false) }
+                SettingsScreen(
+                    state = SettingsUiState(),
+                    keepScreenOnDuringWorkouts = keepScreenOn,
+                    onKeepScreenOnDuringWorkoutsChange = { keepScreenOn = it },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Keep screen on during workouts").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("keep-screen-on-workouts").performClick().assertIsOn()
     }
 
     @Test

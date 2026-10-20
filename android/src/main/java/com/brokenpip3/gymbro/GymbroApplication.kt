@@ -11,10 +11,18 @@ import com.brokenpip3.gymbro.ui.settings.ExerciseListSettings
 import com.brokenpip3.gymbro.ui.settings.SharedPreferencesExerciseListSettings
 import com.brokenpip3.gymbro.ui.theme.SharedPreferencesThemeSettings
 import com.brokenpip3.gymbro.ui.theme.ThemeSettings
+import com.brokenpip3.gymbro.ui.theme.applyAppNightMode
 
 class GymbroApplication : Application() {
-    val themeSettings: ThemeSettings by lazy {
-        SharedPreferencesThemeSettings(this)
+    private lateinit var configuredThemeSettings: ThemeSettings
+    val themeSettings: ThemeSettings get() = configuredThemeSettings
+
+    override fun onCreate() {
+        super.onCreate()
+        configuredThemeSettings =
+            SharedPreferencesThemeSettings(this) { themeMode ->
+                applyAppNightMode(this, themeMode)
+            }
     }
 
     val exerciseListSettings: ExerciseListSettings by lazy {

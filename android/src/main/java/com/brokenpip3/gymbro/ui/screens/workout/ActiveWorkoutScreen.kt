@@ -39,6 +39,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -48,14 +49,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.brokenpip3.gymbro.domain.TrackingMode
@@ -67,6 +72,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun WorkoutRoute(
     repository: ActiveWorkoutSource,
+    keepScreenOnDuringWorkouts: Boolean = false,
     onWorkoutFinished: () -> Unit = {},
     onWorkoutDiscarded: () -> Unit = {},
     onOpenExerciseStats: (Long) -> Unit = {},
@@ -80,6 +86,32 @@ fun WorkoutRoute(
                 },
         )
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val view = LocalView.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val shouldKeepScreenOn = keepScreenOnDuringWorkouts && uiState.activeWorkout != null
+    DisposableEffect(view, lifecycleOwner, shouldKeepScreenOn) {
+        fun updateKeepScreenOn(isResumed: Boolean) {
+            view.keepScreenOn = shouldKeepScreenOn && isResumed
+        }
+
+        val observer =
+            LifecycleEventObserver { _, event ->
+                when (event) {
+                    Lifecycle.Event.ON_RESUME -> updateKeepScreenOn(isResumed = true)
+                    Lifecycle.Event.ON_PAUSE,
+                    Lifecycle.Event.ON_STOP,
+                    Lifecycle.Event.ON_DESTROY,
+                    -> updateKeepScreenOn(isResumed = false)
+                    else -> Unit
+                }
+            }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        updateKeepScreenOn(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            view.keepScreenOn = false
+        }
+    }
     LaunchedEffect(uiState.finishedWorkoutRunId) {
         if (uiState.finishedWorkoutRunId != null) {
             onWorkoutFinished()

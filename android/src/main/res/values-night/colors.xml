@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="gymbro_splash_background">#111412</color>
+    <color name="gymbro_splash_icon_background">#292E2B</color>
+    <color name="gymbro_splash_icon_foreground">#E1E4E0</color>
+</resources>

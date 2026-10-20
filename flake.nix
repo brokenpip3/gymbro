@@ -37,6 +37,8 @@
           systemImageTypes = [ "google_apis_playstore" ];
         };
 
+        gradleJdk = pkgs.jdk21;
+
         androidSdkMinimal = androidCompositionMinimal.androidsdk;
         androidSdkFull = androidCompositionFull.androidsdk;
 
@@ -62,7 +64,7 @@
                   gnumake
                   gradle
                 ]
-                ++ pkgs.lib.optional includeJdk jdk21
+                ++ pkgs.lib.optional includeJdk gradleJdk
                 ++ pkgs.lib.optional includeSdk sdk
                 ++ extraInputs;
 
@@ -104,12 +106,21 @@
                 export PATH="${pkgs.lib.optionalString includeJdk "$JAVA_HOME/bin:"}${pkgs.lib.optionalString includeSdk "$ANDROID_HOME/platform-tools:${pkgs.lib.optionalString hasEmulator "$ANDROID_HOME/emulator:"}$ANDROID_HOME/build-tools/36.0.0:"}$PATH"
                 export GRADLE_USER_HOME="$(git rev-parse --show-toplevel)/.gradle-home"
                 mkdir -p "$GRADLE_USER_HOME"
-                ${pkgs.lib.optionalString (includeSdk && useAapt2Override) ''
-                  echo "android.aapt2FromMavenOverride=${sdk}/libexec/android-sdk/build-tools/36.0.0/aapt2" > "$GRADLE_USER_HOME/gradle.properties"
+                ${pkgs.lib.optionalString includeJdk ''
+                  if [ "''${CI:-false}" = true ] || [ "''${CI:-0}" = 1 ]; then
+                    export GRADLE_OPTS="$GRADLE_OPTS -Dorg.gradle.daemon=false"
+                  fi
                 ''}
               '';
             }
-            // pkgs.lib.optionalAttrs includeJdk { JAVA_HOME = pkgs.jdk21.home; }
+            // pkgs.lib.optionalAttrs includeJdk {
+              JAVA_HOME = gradleJdk.home;
+              GRADLE_OPTS = pkgs.lib.concatStringsSep " " (
+                [ "-Dorg.gradle.java.home=${gradleJdk.home}" ]
+                ++ pkgs.lib.optional (includeSdk && useAapt2Override)
+                  "-Dorg.gradle.project.android.aapt2FromMavenOverride=${sdk}/libexec/android-sdk/build-tools/36.0.0/aapt2"
+              );
+            }
             // pkgs.lib.optionalAttrs includeSdk {
               ANDROID_HOME = "${sdk}/libexec/android-sdk";
               ANDROID_SDK_ROOT = "${sdk}/libexec/android-sdk";

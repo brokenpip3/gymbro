@@ -3,8 +3,9 @@ build-debug:
     ./gradlew :android:assembleDebug
 
 # run JVM unit tests
-test:
-    ./gradlew :android:testDebugUnitTest
+[positional-arguments]
+test *args:
+    ./gradlew :android:testDebugUnitTest "$@"
 
 # run Android lint
 lint:
@@ -109,3 +110,16 @@ run-emulator-start-headless:
 run-emulator-stop:
     @command -v adb >/dev/null 2>&1 || { echo >&2 "adb is required but not installed."; exit 1; }
     adb emu kill
+
+# pass arguments through to the Gradle wrapper
+[positional-arguments]
+gradle *args:
+    ./gradlew "$@"
+
+# display Gradle and JVM versions
+gradle-info:
+    ./gradlew --version
+
+# list compatible Gradle daemon state
+gradle-status:
+    ./gradlew --status

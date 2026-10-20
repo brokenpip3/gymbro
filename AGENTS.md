@@ -24,6 +24,7 @@ just run-emulator-start-headless
 Run Gradle commands one at a time. Use `--no-daemon -Djava.net.preferIPv4Stack=true` if the environment has Gradle or wildcard-IP issues.
 
 The project uses Java 21, Android SDK/build tools 36, and the pinned Gradle wrapper. Do not use a system Gradle installation or commit generated `.gradle-home`, `build`, `dist`, or signing files.
+Use `just gradle-info` to inspect Gradle/JVM selection and `just gradle-status` to inspect daemons. Nix shells pass the JDK and AAPT2 overrides through `GRADLE_OPTS` without rewriting shared Gradle properties. Local Gradle daemons stay enabled; CI shells disable persistent daemons when `CI=true` or `CI=1`.
 
 ## Data and migrations
 

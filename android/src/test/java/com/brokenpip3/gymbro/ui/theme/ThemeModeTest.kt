@@ -1,6 +1,8 @@
 package com.brokenpip3.gymbro.ui.theme
 
+import android.app.UiModeManager
 import android.content.Context
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.test.core.app.ApplicationProvider
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -32,6 +34,20 @@ class ThemeModeTest {
     }
 
     @Test
+    fun themeModesMapToAppCompatNightModes() {
+        assertEquals(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM, ThemeMode.System.toAppCompatNightMode())
+        assertEquals(AppCompatDelegate.MODE_NIGHT_NO, ThemeMode.Light.toAppCompatNightMode())
+        assertEquals(AppCompatDelegate.MODE_NIGHT_YES, ThemeMode.Dark.toAppCompatNightMode())
+    }
+
+    @Test
+    fun themeModesMapToApplicationNightModes() {
+        assertEquals(UiModeManager.MODE_NIGHT_AUTO, ThemeMode.System.toApplicationNightMode())
+        assertEquals(UiModeManager.MODE_NIGHT_NO, ThemeMode.Light.toApplicationNightMode())
+        assertEquals(UiModeManager.MODE_NIGHT_YES, ThemeMode.Dark.toApplicationNightMode())
+    }
+
+    @Test
     fun themeChoiceIsLoadedAndPersistedLocally() {
         val firstSettings = SharedPreferencesThemeSettings(context)
         assertEquals(ThemeMode.System, firstSettings.themeMode.value)
@@ -40,6 +56,16 @@ class ThemeModeTest {
 
         assertEquals(ThemeMode.Dark, firstSettings.themeMode.value)
         assertEquals(ThemeMode.Dark, SharedPreferencesThemeSettings(context).themeMode.value)
+    }
+
+    @Test
+    fun themeModeChangesAreReportedForPlatformThemeSynchronization() {
+        val appliedModes = mutableListOf<ThemeMode>()
+        val settings = SharedPreferencesThemeSettings(context, appliedModes::add)
+
+        settings.setThemeMode(ThemeMode.Dark)
+
+        assertEquals(listOf(ThemeMode.System, ThemeMode.Dark), appliedModes)
     }
 
     @Test
