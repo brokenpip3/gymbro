@@ -8,7 +8,7 @@ import java.util.TimeZone
 
 plugins {
     id("com.android.application")
-    id("com.google.devtools.ksp") version "2.3.12"
+    id("com.google.devtools.ksp") version "2.3.13"
     id("io.gitlab.arturbosch.detekt")
     id("org.jlleitschuh.gradle.ktlint")
     id("org.jetbrains.kotlin.plugin.compose")
