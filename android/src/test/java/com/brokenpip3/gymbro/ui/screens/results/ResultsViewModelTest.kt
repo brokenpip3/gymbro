@@ -3,6 +3,7 @@ package com.brokenpip3.gymbro.ui.screens.results
 import com.brokenpip3.gymbro.data.entities.ExerciseResultEntity
 import com.brokenpip3.gymbro.data.entities.SetResultEntity
 import com.brokenpip3.gymbro.data.entities.WorkoutRunEntity
+import com.brokenpip3.gymbro.data.repositories.CompletedWorkoutEdit
 import com.brokenpip3.gymbro.domain.TrackingMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -20,6 +21,132 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 @Suppress("LargeClass")
 class ResultsViewModelTest {
+    @Test
+    fun invalidDraftAndRangeChangesKeepEditorOpen() =
+        runTest {
+            val source =
+                object : ResultsSource {
+                    override fun observeWorkoutRuns() =
+                        MutableStateFlow(
+                            listOf(workoutRun(id = 7, startedAt = 1000, finishedAt = 61000)),
+                        )
+
+                    override suspend fun getExerciseResults(workoutRunId: Long) = emptyList<ExerciseResultEntity>()
+
+                    override suspend fun getSetResults(exerciseResultId: Long) = emptyList<SetResultEntity>()
+                }
+            val vm = ResultsViewModel(source, viewModelScope(), clock = { 100 * MILLIS_PER_DAY })
+            advanceUntilIdle()
+            vm.editWorkout(
+                vm.uiState.value.workoutDetails
+                    .single(),
+            )
+            vm.updateWorkoutDraft(
+                vm.workoutEditor.value!!
+                    .draft
+                    .copy(end = "invalid"),
+            )
+            vm.selectStatsRange(ResultsStatsRange.Last30Days)
+            advanceUntilIdle()
+            assertTrue(
+                vm.uiState.value.workoutDetails
+                    .isEmpty(),
+            )
+            vm.saveWorkoutEdit()
+            assertEquals(
+                "invalid",
+                vm.workoutEditor.value!!
+                    .draft.end,
+            )
+            assertTrue(vm.workoutEditor.value!!.error != null)
+            assertEquals(false, vm.workoutEditor.value!!.isSaving)
+        }
+
+    @Test
+    fun failedSaveRetainsDraftAndCanBeCancelled() =
+        runTest {
+            val source =
+                object : ResultsSource {
+                    override fun observeWorkoutRuns() =
+                        MutableStateFlow(
+                            listOf(workoutRun(id = 7, startedAt = 1000, finishedAt = 61000)),
+                        )
+
+                    override suspend fun getExerciseResults(workoutRunId: Long) = emptyList<ExerciseResultEntity>()
+
+                    override suspend fun getSetResults(exerciseResultId: Long) = emptyList<SetResultEntity>()
+
+                    override suspend fun saveCompletedWorkout(edit: CompletedWorkoutEdit): Unit =
+                        throw IllegalArgumentException("Workout changed")
+                }
+            val vm = ResultsViewModel(source, viewModelScope(), clock = { 100000 })
+            advanceUntilIdle()
+            vm.editWorkout(
+                vm.uiState.value.workoutDetails
+                    .single(),
+            )
+            val draft = vm.workoutEditor.value!!.draft
+            vm.saveWorkoutEdit()
+            advanceUntilIdle()
+            assertEquals(draft, vm.workoutEditor.value!!.draft)
+            assertEquals("Workout changed", vm.workoutEditor.value!!.error)
+            assertEquals(false, vm.workoutEditor.value!!.isSaving)
+            vm.dismissWorkoutEditor()
+            assertEquals(null, vm.workoutEditor.value)
+        }
+
+    @Test
+    fun successfulSaveClosesEditorAndPreventsOverlappingSaves() =
+        runTest {
+            val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+            val runs =
+                MutableStateFlow(
+                    listOf(workoutRun(id = 7, startedAt = 1000, finishedAt = 61000)),
+                )
+            var saves = 0
+            val source =
+                object : ResultsSource {
+                    override fun observeWorkoutRuns() = runs
+
+                    override suspend fun getExerciseResults(workoutRunId: Long) = emptyList<ExerciseResultEntity>()
+
+                    override suspend fun getSetResults(exerciseResultId: Long) = emptyList<SetResultEntity>()
+
+                    override suspend fun saveCompletedWorkout(edit: CompletedWorkoutEdit) {
+                        saves += 1
+                        gate.await()
+                        runs.value =
+                            listOf(
+                                runs.value.single().copy(startedAt = edit.startedAt, finishedAt = edit.finishedAt),
+                            )
+                    }
+                }
+            val vm = ResultsViewModel(source, viewModelScope(), clock = { 200000 })
+            advanceUntilIdle()
+            vm.editWorkout(
+                vm.uiState.value.workoutDetails
+                    .single(),
+            )
+            val draft = vm.workoutEditor.value!!.draft
+            val newEnd = WorkoutEditDraft.from(draft.detail.copy(finishedAt = 121000)).end
+            vm.updateWorkoutDraft(draft.copy(end = newEnd))
+            vm.saveWorkoutEdit()
+            assertTrue(vm.workoutEditor.value!!.isSaving)
+            vm.saveWorkoutEdit()
+            vm.dismissWorkoutEditor()
+            assertTrue(vm.workoutEditor.value!!.isSaving)
+            gate.complete(Unit)
+            advanceUntilIdle()
+            assertEquals(null, vm.workoutEditor.value)
+            assertEquals(1, saves)
+            assertEquals(
+                119L,
+                vm.uiState.value.recentWorkouts
+                    .single()
+                    .durationSeconds,
+            )
+        }
+
     @Test
     @Suppress("LongMethod")
     fun workoutDetailPreservesExerciseOrderAndShowsIncompleteSetsAndNotes() {
@@ -111,6 +238,8 @@ class ResultsViewModelTest {
                                         value = "5 x 80",
                                         isCompleted = true,
                                         notes = null,
+                                        reps = 5,
+                                        weight = 80.0,
                                     ),
                                 ),
                         ),
@@ -127,6 +256,8 @@ class ResultsViewModelTest {
                                         value = "10 x 30",
                                         isCompleted = true,
                                         notes = "Controlled",
+                                        reps = 10,
+                                        weight = 30.0,
                                     ),
                                     WorkoutSetDetailUiModel(
                                         setId = 202,

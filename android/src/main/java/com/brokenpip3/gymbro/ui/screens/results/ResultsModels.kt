@@ -57,6 +57,7 @@ data class WorkoutDetailUiModel(
     val durationSeconds: Long,
     val notes: String?,
     val exercises: List<WorkoutExerciseDetailUiModel>,
+    val finishedAt: Long = startedAt + durationSeconds * 1_000L,
 )
 
 data class WorkoutExerciseDetailUiModel(
@@ -73,6 +74,10 @@ data class WorkoutSetDetailUiModel(
     val value: String?,
     val isCompleted: Boolean,
     val notes: String?,
+    val reps: Int? = null,
+    val weight: Double? = null,
+    val durationSeconds: Long? = null,
+    val distance: Double? = null,
 )
 
 data class ExerciseStatsUiModel(

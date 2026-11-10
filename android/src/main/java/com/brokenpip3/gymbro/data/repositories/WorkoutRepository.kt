@@ -147,6 +147,43 @@ class WorkoutRepository internal constructor(
         }
     }
 
+    suspend fun saveCompletedWorkout(
+        edit: CompletedWorkoutEdit,
+        nowMillis: Long,
+    ) {
+        edit.validateTimes(nowMillis)
+        require(
+            edit.sets
+                .map { it.setId }
+                .distinct()
+                .size == edit.sets.size,
+        ) { "Duplicate set in workout edit" }
+        transactionRunner.run {
+            val run = requireNotNull(workoutRunDao.getWorkoutRun(edit.workoutRunId)) { "Workout no longer exists" }
+            require(run.finishedAt != null) { "Only completed workouts can be edited" }
+            val exercises = workoutRunDao.getExerciseResults(run.id).associateBy { it.id }
+            val updates =
+                edit.sets.map { changed ->
+                    val stored = requireNotNull(workoutRunDao.getSetResult(changed.setId)) { "Set no longer exists" }
+                    val exercise =
+                        requireNotNull(exercises[stored.exerciseResultId]) {
+                            "Set does not belong to this workout"
+                        }
+                    val mode = TrackingMode.entries.first { it.databaseValue == exercise.trackingModeSnapshot }
+                    changed.validate(mode)
+                    stored.copy(
+                        reps = changed.reps,
+                        weight = changed.weight,
+                        durationSeconds = changed.durationSeconds,
+                        distance = changed.distance,
+                        isCompleted = changed.isCompleted,
+                    )
+                }
+            updates.forEach { workoutRunDao.updateSetResult(it) }
+            workoutRunDao.updateWorkoutRun(run.copy(startedAt = edit.startedAt, finishedAt = edit.finishedAt))
+        }
+    }
+
     suspend fun updateWorkoutNotes(
         workoutRunId: Long,
         notes: String?,

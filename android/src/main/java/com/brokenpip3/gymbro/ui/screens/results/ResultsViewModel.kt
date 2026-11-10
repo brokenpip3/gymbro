@@ -5,7 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.brokenpip3.gymbro.data.entities.ExerciseResultEntity
 import com.brokenpip3.gymbro.data.entities.SetResultEntity
 import com.brokenpip3.gymbro.data.entities.WorkoutRunEntity
+import com.brokenpip3.gymbro.data.repositories.CompletedWorkoutEdit
 import com.brokenpip3.gymbro.data.repositories.WorkoutRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.Flow
@@ -19,6 +21,10 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 interface ResultsSource {
+    suspend fun saveCompletedWorkout(edit: CompletedWorkoutEdit) {
+        error("Workout editing is unavailable")
+    }
+
     fun observeWorkoutRuns(): Flow<List<WorkoutRunEntity>>
 
     fun observeResultChanges(): Flow<Unit> = flowOf(Unit)
@@ -46,6 +52,10 @@ interface ResultsSource {
 class WorkoutRepositoryResultsSource(
     private val repository: WorkoutRepository,
 ) : ResultsSource {
+    override suspend fun saveCompletedWorkout(edit: CompletedWorkoutEdit) {
+        repository.saveCompletedWorkout(edit, System.currentTimeMillis())
+    }
+
     override fun observeWorkoutRuns(): Flow<List<WorkoutRunEntity>> = repository.observeCompletedWorkoutRuns()
 
     override fun observeResultChanges(): Flow<Unit> =
@@ -93,6 +103,7 @@ class WorkoutRepositoryResultsSource(
     }
 }
 
+@Suppress("TooManyFunctions")
 class ResultsViewModel(
     private val source: ResultsSource,
     coroutineScope: CoroutineScope? = null,
@@ -102,6 +113,44 @@ class ResultsViewModel(
 
     private val _uiState = MutableStateFlow(ResultsUiState())
     val uiState: StateFlow<ResultsUiState> = _uiState.asStateFlow()
+    private val _workoutEditor = MutableStateFlow<WorkoutEditorState?>(null)
+    val workoutEditor: StateFlow<WorkoutEditorState?> = _workoutEditor.asStateFlow()
+
+    fun editWorkout(detail: WorkoutDetailUiModel) {
+        if (_workoutEditor.value?.isSaving == true) return
+        _workoutEditor.value = WorkoutEditorState(WorkoutEditDraft.from(detail))
+    }
+
+    fun updateWorkoutDraft(draft: WorkoutEditDraft) {
+        val current = _workoutEditor.value ?: return
+        if (!current.isSaving) _workoutEditor.value = current.copy(draft = draft, error = null)
+    }
+
+    fun dismissWorkoutEditor() {
+        if (_workoutEditor.value?.isSaving != true) _workoutEditor.value = null
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    fun saveWorkoutEdit() {
+        val current = _workoutEditor.value?.takeUnless { it.isSaving } ?: return
+        val error = current.draft.validationError(nowMillis = clock())
+        if (error != null) {
+            _workoutEditor.value = current.copy(error = error)
+            return
+        }
+        _workoutEditor.value = current.copy(isSaving = true, error = null)
+        scope.launch {
+            try {
+                source.saveCompletedWorkout(current.draft.toEdit())
+                _workoutEditor.value = null
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                _workoutEditor.value = current.copy(error = error.message ?: "Unable to save workout. Try again.")
+            }
+        }
+    }
+
     private val selectedStatsRange = MutableStateFlow(ResultsStatsRange.AllTime)
     private var selectedExerciseKey: ExerciseStatsSelectionKey? = null
     private var selectedWorkoutId: Long? = null
