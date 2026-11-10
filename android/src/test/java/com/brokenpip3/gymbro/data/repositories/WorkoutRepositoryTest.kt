@@ -21,6 +21,117 @@ import org.junit.Test
 @Suppress("LargeClass")
 class WorkoutRepositoryTest {
     @Test
+    fun completedWorkoutEditRejectsForeignSetBeforeWritingValidSet() =
+        runTest {
+            val first = setResult(id = 24, exerciseResultId = 5, setOrder = 0, reps = 8, weight = 80.0)
+            val foreign = setResult(id = 99, exerciseResultId = 6, setOrder = 0, reps = 8, weight = 80.0)
+            val dao =
+                FakeWorkoutRunDao(
+                    workoutRuns = mutableMapOf(3L to unfinishedWorkoutRun(finishedAt = 9000)),
+                    exerciseResults =
+                        listOf(
+                            exerciseResult(5, 3, null, "Press", "strength", 0),
+                            exerciseResult(6, 4, null, "Other press", "strength", 0),
+                        ),
+                    setResults = listOf(first, foreign),
+                )
+            val repository = WorkoutRepository(dao, FakeWorkoutScheduleDao(), FakeWorkoutExerciseDao())
+            val edit =
+                CompletedWorkoutEdit(
+                    3,
+                    2000,
+                    5000,
+                    listOf(
+                        CompletedSetEdit(24, 10, 85.0, null, null, true),
+                        CompletedSetEdit(99, 10, 85.0, null, null, true),
+                    ),
+                )
+            try {
+                repository.saveCompletedWorkout(edit, 10000)
+                fail("Foreign workout set was accepted")
+            } catch (_: IllegalArgumentException) {
+                assertEquals(null, dao.updatedWorkoutRun)
+                assertEquals(null, dao.updatedSetResult)
+                assertEquals(first, dao.getSetResult(24))
+            }
+        }
+
+    @Test
+    fun completedWorkoutEditPreservesSnapshotsAndNotes() =
+        runTest {
+            val run = unfinishedWorkoutRun(finishedAt = 9000L).copy(notes = "Keep me")
+            val original =
+                setResult(id = 24, exerciseResultId = 5, setOrder = 0, reps = 8, weight = 80.0)
+                    .copy(notes = "Set note")
+            val dao =
+                FakeWorkoutRunDao(
+                    workoutRuns = mutableMapOf(3L to run),
+                    exerciseResults = listOf(exerciseResult(5, 3, null, "Deleted press", "strength", 0)),
+                    setResults = listOf(original),
+                )
+            val transactions = CountingTransactionRunner()
+            val repository = WorkoutRepository(dao, FakeWorkoutScheduleDao(), FakeWorkoutExerciseDao(), transactions)
+            repository.saveCompletedWorkout(
+                CompletedWorkoutEdit(3, 2000, 5000, listOf(CompletedSetEdit(24, 10, 85.0, null, null, false))),
+                nowMillis = 10000,
+            )
+            assertEquals(run.copy(startedAt = 2000, finishedAt = 5000), dao.updatedWorkoutRun)
+            assertEquals(original.copy(reps = 10, weight = 85.0, isCompleted = false), dao.updatedSetResult)
+            assertEquals(1, transactions.runCount)
+        }
+
+    @Test
+    fun completedWorkoutEditRejectsInvalidInputBeforeAnyWrites() =
+        runTest {
+            val validSet = CompletedSetEdit(24, 10, 85.0, null, null, true)
+            val valid = CompletedWorkoutEdit(3, 2000, 5000, listOf(validSet))
+            val invalidEdits =
+                listOf(
+                    valid.copy(startedAt = -1),
+                    valid.copy(finishedAt = 1000),
+                    valid.copy(finishedAt = 11000),
+                    valid.copy(sets = listOf(validSet.copy(setId = 99))),
+                    valid.copy(sets = listOf(validSet, validSet)),
+                    valid.copy(sets = listOf(validSet.copy(weight = Double.NaN))),
+                    valid.copy(sets = listOf(validSet.copy(reps = 0))),
+                    valid.copy(sets = listOf(validSet.copy(weight = null))),
+                    valid.copy(sets = listOf(validSet.copy(durationSeconds = -1))),
+                    valid.copy(sets = listOf(validSet.copy(distance = Double.POSITIVE_INFINITY))),
+                )
+            for (edit in invalidEdits) {
+                val dao =
+                    FakeWorkoutRunDao(
+                        workoutRuns = mutableMapOf(3L to unfinishedWorkoutRun(finishedAt = 9000)),
+                        exerciseResults = listOf(exerciseResult(5, 3, null, "Press", "strength", 0)),
+                        setResults = listOf(setResult(id = 24, exerciseResultId = 5, setOrder = 0)),
+                    )
+                val repository = WorkoutRepository(dao, FakeWorkoutScheduleDao(), FakeWorkoutExerciseDao())
+                try {
+                    repository.saveCompletedWorkout(edit, nowMillis = 10000)
+                    fail("Invalid edit was accepted: $edit")
+                } catch (_: IllegalArgumentException) {
+                    assertEquals(null, dao.updatedWorkoutRun)
+                    assertEquals(null, dao.updatedSetResult)
+                }
+            }
+        }
+
+    @Test
+    fun completedWorkoutEditRejectsMissingAndUnfinishedRuns() =
+        runTest {
+            for (runs in listOf(mutableMapOf(), mutableMapOf(3L to unfinishedWorkoutRun()))) {
+                val dao = FakeWorkoutRunDao(workoutRuns = runs)
+                val repository = WorkoutRepository(dao, FakeWorkoutScheduleDao(), FakeWorkoutExerciseDao())
+                try {
+                    repository.saveCompletedWorkout(CompletedWorkoutEdit(3, 2000, 5000, emptyList()), 10000)
+                    fail("Missing or unfinished workout was accepted")
+                } catch (_: IllegalArgumentException) {
+                    assertEquals(null, dao.updatedWorkoutRun)
+                }
+            }
+        }
+
+    @Test
     fun startWorkoutCreatesOneUnfinishedRun() =
         runTest {
             val workoutRunDao = FakeWorkoutRunDao(insertWorkoutRunId = 10)

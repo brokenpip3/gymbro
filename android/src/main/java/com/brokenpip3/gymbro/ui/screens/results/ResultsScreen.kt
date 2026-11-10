@@ -73,6 +73,7 @@ fun ResultsRoute(
     val viewModel: ResultsViewModel =
         viewModel(factory = ResultsViewModelFactory(repository))
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val workoutEditor by viewModel.workoutEditor.collectAsStateWithLifecycle()
 
     LaunchedEffect(initialExerciseId, uiState.exerciseStats) {
         initialExerciseId
@@ -99,6 +100,11 @@ fun ResultsRoute(
         onUpdateSetNotes = viewModel::updateSetNotes,
         onUpdateWorkoutNotes = viewModel::updateWorkoutNotes,
         onStatsRangeSelected = viewModel::selectStatsRange,
+        workoutEditor = workoutEditor,
+        onEditWorkout = viewModel::editWorkout,
+        onWorkoutDraftChanged = viewModel::updateWorkoutDraft,
+        onSaveWorkoutEdit = viewModel::saveWorkoutEdit,
+        onDismissWorkoutEditor = viewModel::dismissWorkoutEditor,
         modifier = modifier,
     )
 }
@@ -116,9 +122,14 @@ fun ResultsScreen(
     onUpdateSetNotes: (Long, String) -> Unit = { _, _ -> },
     onUpdateWorkoutNotes: (Long, String) -> Unit = { _, _ -> },
     onStatsRangeSelected: (ResultsStatsRange) -> Unit = {},
+    workoutEditor: WorkoutEditorState? = null,
+    onEditWorkout: (WorkoutDetailUiModel) -> Unit = {},
+    onWorkoutDraftChanged: (WorkoutEditDraft) -> Unit = {},
+    onSaveWorkoutEdit: () -> Unit = {},
+    onDismissWorkoutEditor: () -> Unit = {},
 ) {
     val hasVisibleResults = uiState.recentWorkouts.isNotEmpty() || uiState.exerciseStats.isNotEmpty()
-    if (!hasVisibleResults && !uiState.hasHistoricalData) {
+    if (!hasVisibleResults && !uiState.hasHistoricalData && workoutEditor == null) {
         EmptyState(
             icon = GymbroIcons.Results,
             title = "No results yet",
@@ -223,10 +234,11 @@ fun ResultsScreen(
         )
     }
 
-    uiState.selectedWorkoutDetail?.let { detail ->
+    uiState.selectedWorkoutDetail?.takeIf { workoutEditor == null }?.let { detail ->
         WorkoutDetailDialog(
             detail = detail,
             onDismiss = onDismissWorkoutDetail,
+            onEditWorkout = { onEditWorkout(detail) },
             onEditWorkoutNotes = {
                 noteEditRequest =
                     ResultNoteEditRequest(
@@ -255,6 +267,10 @@ fun ResultsScreen(
                     )
             },
         )
+    }
+
+    workoutEditor?.let { editor ->
+        WorkoutEditDialog(editor, onWorkoutDraftChanged, onSaveWorkoutEdit, onDismissWorkoutEditor)
     }
 
     noteEditRequest?.let { request ->
@@ -792,6 +808,7 @@ private fun WorkoutDetailDialog(
     detail: WorkoutDetailUiModel,
     onDismiss: () -> Unit,
     onEditWorkoutNotes: () -> Unit,
+    onEditWorkout: () -> Unit,
     onEditExerciseNotes: (WorkoutExerciseDetailUiModel) -> Unit,
     onEditSetNotes: (WorkoutSetDetailUiModel) -> Unit,
 ) {
@@ -859,6 +876,9 @@ private fun WorkoutDetailDialog(
             TextButton(onClick = onDismiss) {
                 Text(text = "Close")
             }
+        },
+        dismissButton = {
+            TextButton(onClick = onEditWorkout) { Text("Edit workout") }
         },
     )
 }

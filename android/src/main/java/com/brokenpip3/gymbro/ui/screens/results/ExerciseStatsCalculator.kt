@@ -34,6 +34,7 @@ internal fun ResultRunDetail.toWorkoutDetailUiModel(): WorkoutDetailUiModel =
         startedAt = workoutRun.startedAt,
         durationSeconds = ((workoutRun.finishedAt ?: workoutRun.startedAt) - workoutRun.startedAt) / 1_000L,
         notes = workoutRun.notes,
+        finishedAt = workoutRun.finishedAt ?: workoutRun.startedAt,
         exercises =
             exerciseDetails
                 .sortedBy { detail -> detail.exerciseResult.sortOrder }
@@ -57,6 +58,10 @@ private fun ResultExerciseDetail.toWorkoutExerciseDetailUiModel(): WorkoutExerci
                         value = setResult.formatSet(trackingMode),
                         isCompleted = setResult.isCompleted,
                         notes = setResult.notes,
+                        reps = setResult.reps,
+                        weight = setResult.weight,
+                        durationSeconds = setResult.durationSeconds,
+                        distance = setResult.distance,
                     )
                 },
     )

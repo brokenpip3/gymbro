@@ -6,17 +6,26 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.text.AnnotatedString
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.brokenpip3.gymbro.data.repositories.CompletedWorkoutEdit
 import com.brokenpip3.gymbro.domain.TrackingMode
 import com.brokenpip3.gymbro.ui.theme.GymbroTheme
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -25,6 +34,90 @@ import org.junit.runner.RunWith
 class ResultsScreenUiTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun workoutEditorSavesChangedMetricsAndDisablesControlsWhileSaving() {
+        val detail =
+            WorkoutDetailUiModel(
+                1,
+                "Press day",
+                1000,
+                60,
+                null,
+                listOf(
+                    WorkoutExerciseDetailUiModel(
+                        5,
+                        "Press",
+                        TrackingMode.Strength,
+                        null,
+                        listOf(WorkoutSetDetailUiModel(24, 1, "8 x 80", true, null, reps = 8, weight = 80.0)),
+                    ),
+                ),
+            )
+        var saved: CompletedWorkoutEdit? = null
+        composeRule.setContent {
+            GymbroTheme {
+                var editor by remember { mutableStateOf(WorkoutEditorState(WorkoutEditDraft.from(detail))) }
+                WorkoutEditDialog(editor, { editor = editor.copy(draft = it) }, {
+                    saved = editor.draft.toEdit()
+                    editor = editor.copy(isSaving = true)
+                }, {})
+            }
+        }
+        composeRule.onNodeWithTag("workout-edit-reps-24").performScrollTo().performTextReplacement("12")
+        composeRule.onNodeWithContentDescription("Press, set 1, completed").performScrollTo().performClick()
+        composeRule.onNodeWithText("Save").performClick()
+        assertEquals(12, saved!!.sets.single().reps)
+        assertEquals(false, saved!!.sets.single().isCompleted)
+        composeRule.onNodeWithText("Saving…").assertIsNotEnabled()
+        composeRule.onNodeWithText("Cancel").assertIsNotEnabled()
+        composeRule.onNodeWithTag("workout-edit-reps-24").assertIsNotEnabled()
+    }
+
+    @Test
+    fun workoutEditorShowsTimesAndSetFieldsAndCancelDiscardsChanges() {
+        val detail =
+            WorkoutDetailUiModel(
+                runId = 1,
+                scheduleName = "Press day",
+                startedAt = 1000,
+                durationSeconds = 60,
+                notes = null,
+                exercises =
+                    listOf(
+                        WorkoutExerciseDetailUiModel(
+                            5,
+                            "Press",
+                            TrackingMode.Strength,
+                            null,
+                            listOf(WorkoutSetDetailUiModel(24, 1, "8 × 80", true, null, reps = 8, weight = 80.0)),
+                        ),
+                    ),
+            )
+        composeRule.setContent {
+            GymbroTheme {
+                var editor by remember { mutableStateOf<WorkoutEditorState?>(null) }
+                ResultsScreen(
+                    uiState = ResultsUiState(hasHistoricalData = true, selectedWorkoutDetail = detail),
+                    workoutEditor = editor,
+                    onEditWorkout = { editor = WorkoutEditorState(WorkoutEditDraft.from(it)) },
+                    onWorkoutDraftChanged = { editor = editor?.copy(draft = it) },
+                    onDismissWorkoutEditor = { editor = null },
+                )
+            }
+        }
+        composeRule.onNodeWithText("Edit workout").performClick()
+        composeRule.onNodeWithTag("workout-edit-start").assertIsDisplayed()
+        composeRule.onNodeWithTag("workout-edit-end").assertIsDisplayed()
+        composeRule.onNodeWithTag("workout-edit-reps-24").performScrollTo().performTextReplacement("12")
+        composeRule.onNodeWithText("Cancel").performClick()
+        composeRule.onNodeWithText("Edit workout").assertIsDisplayed()
+        composeRule.onNodeWithText("Edit workout").performClick()
+        composeRule
+            .onNodeWithTag("workout-edit-reps-24")
+            .performScrollTo()
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.EditableText, AnnotatedString("8")))
+    }
 
     @Test
     fun exerciseStatsSearchFiltersRenderedRows() {
