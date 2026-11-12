@@ -57,6 +57,7 @@ import com.brokenpip3.gymbro.ui.settings.ExerciseListSettings
 import com.brokenpip3.gymbro.ui.theme.ThemeMode
 import com.brokenpip3.gymbro.ui.theme.ThemePalette
 import com.brokenpip3.gymbro.ui.theme.ThemeSettings
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -75,6 +76,7 @@ data class SettingsUiState(
     val isBusy: Boolean = false,
     val isError: Boolean = false,
     val isFileImportConfirmationVisible: Boolean = false,
+    val isHistoryResetConfirmationVisible: Boolean = false,
 )
 
 @Suppress("TooManyFunctions")
@@ -84,6 +86,7 @@ class SettingsViewModel(
     private val isWorkoutActive: suspend () -> Boolean = { false },
     private val demoDataSeeder: DemoDataSeeder? = null,
     coroutineScope: CoroutineScope? = null,
+    private val resetWorkoutHistory: (suspend () -> Boolean)? = null,
 ) : ViewModel() {
     private val scope = coroutineScope ?: viewModelScope
 
@@ -93,7 +96,37 @@ class SettingsViewModel(
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
+    fun requestHistoryReset() {
+        val current = _uiState.value
+        if (resetWorkoutHistory == null || current.isBusy || current.isFileImportConfirmationVisible) return
+        _uiState.update { it.copy(isHistoryResetConfirmationVisible = true, message = null, isError = false) }
+    }
+
+    fun dismissHistoryReset() {
+        _uiState.update { it.copy(isHistoryResetConfirmationVisible = false) }
+    }
+
+    fun confirmHistoryReset() {
+        val reset = resetWorkoutHistory ?: return
+        if (_uiState.value.isBusy || !_uiState.value.isHistoryResetConfirmationVisible) return
+        _uiState.update { it.copy(isBusy = true, isHistoryResetConfirmationVisible = false) }
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            val result = runCatching { reset() }
+            val failure = result.exceptionOrNull()
+            if (failure is CancellationException) throw failure
+            val resetCompleted = result.getOrNull()
+            val message =
+                when (resetCompleted) {
+                    true -> "Workout history reset"
+                    false -> "Finish or discard the active workout before resetting history"
+                    null -> "Unable to reset workout history"
+                }
+            _uiState.update { it.copy(isBusy = false, message = message, isError = resetCompleted != true) }
+        }
+    }
+
     fun loadDemoData() {
+        if (_uiState.value.isBusy) return
         val seeder = demoDataSeeder ?: return
         _uiState.update { it.copy(isBusy = true, message = null, isError = false) }
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
@@ -120,7 +153,7 @@ class SettingsViewModel(
     }
 
     fun onFileExportLocationSelected(uri: String) {
-        val storage = fileStorage ?: return
+        val storage = fileStorage?.takeUnless { _uiState.value.isBusy } ?: return
         val exportScope = pendingExportScope
         pendingExportScope = null
         if (exportScope == null) {
@@ -144,6 +177,7 @@ class SettingsViewModel(
     }
 
     fun onFileImportLocationSelected(uri: String) {
+        if (_uiState.value.isBusy) return
         val storage = fileStorage ?: return
         _uiState.update { it.copy(isBusy = true, message = null, isError = false) }
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
@@ -193,6 +227,7 @@ class SettingsViewModel(
     }
 
     fun confirmFileImport() {
+        if (_uiState.value.isBusy) return
         val storage = fileStorage ?: return
         val uri = pendingFileImportUri
         pendingFileImportUri = null
@@ -235,6 +270,7 @@ fun SettingsRoute(
                         fileStorage = fileStorage,
                         isWorkoutActive = { application.workoutRepository.hasActiveWorkoutRun() },
                         demoDataSeeder = demoDataSeeder,
+                        resetWorkoutHistory = application.workoutRepository::resetWorkoutHistory,
                     )
                 },
         )
@@ -263,6 +299,9 @@ fun SettingsRoute(
         onGroupByCategoryChange = exerciseListSettings::setGroupExercisesByCategory,
         keepScreenOnDuringWorkouts = keepScreenOnDuringWorkouts,
         onKeepScreenOnDuringWorkoutsChange = exerciseListSettings::setKeepScreenOnDuringWorkouts,
+        onRequestHistoryReset = viewModel::requestHistoryReset,
+        onDismissHistoryReset = viewModel::dismissHistoryReset,
+        onConfirmHistoryReset = viewModel::confirmHistoryReset,
         onConfirmFileImport = viewModel::confirmFileImport,
         onDismissFileImportConfirmation = viewModel::dismissFileImportConfirmation,
         onExportFileScopeClick = { scope ->
@@ -293,12 +332,17 @@ fun SettingsScreen(
     onImportFileClick: () -> Unit = {},
     onLoadDemoData: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    onRequestHistoryReset: () -> Unit = {},
+    onDismissHistoryReset: () -> Unit = {},
+    onConfirmHistoryReset: () -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     LaunchedEffect(state.message) {
         state.message?.let { snackbarHostState.showSnackbar(it) }
     }
+
+    HistoryResetConfirmation(state.isHistoryResetConfirmationVisible, onConfirmHistoryReset, onDismissHistoryReset)
 
     if (state.isFileImportConfirmationVisible) {
         AlertDialog(
@@ -357,6 +401,7 @@ fun SettingsScreen(
                 onExportScopeClick = onExportFileScopeClick,
                 onImportClick = onImportFileClick,
             )
+            SettingsDataSection(state.isBusy, onRequestHistoryReset)
             if (state.isBusy) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(24.dp),
@@ -587,6 +632,7 @@ private class SettingsViewModelFactory(
     private val fileStorage: GymbroBackupFileStore,
     private val isWorkoutActive: suspend () -> Boolean,
     private val demoDataSeeder: DemoDataSeeder,
+    private val resetWorkoutHistory: suspend () -> Boolean,
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -596,6 +642,7 @@ private class SettingsViewModelFactory(
                 fileStorage = fileStorage,
                 isWorkoutActive = isWorkoutActive,
                 demoDataSeeder = demoDataSeeder,
+                resetWorkoutHistory = resetWorkoutHistory,
             ) as T
         }
 

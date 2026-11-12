@@ -18,6 +18,100 @@ import org.junit.Test
 
 class SettingsViewModelTest {
     @Test
+    fun historyResetPreventsOverlappingOperations() =
+        runTest {
+            val gate = kotlinx.coroutines.CompletableDeferred<Boolean>()
+            var resets = 0
+            val viewModel =
+                SettingsViewModel(
+                    backupStore = GymbroBackupStore(FakeSettingsBackupDataSource()),
+                    coroutineScope = this,
+                    resetWorkoutHistory = {
+                        resets++
+                        gate.await()
+                    },
+                )
+            viewModel.requestHistoryReset()
+            viewModel.confirmHistoryReset()
+            assertTrue(viewModel.uiState.value.isBusy)
+            viewModel.requestHistoryReset()
+            viewModel.confirmHistoryReset()
+            assertEquals(1, resets)
+            assertFalse(viewModel.uiState.value.isHistoryResetConfirmationVisible)
+            gate.complete(true)
+            advanceUntilIdle()
+            assertFalse(viewModel.uiState.value.isBusy)
+        }
+
+    @Test
+    fun failedHistoryResetReportsErrorAndAllowsRetry() =
+        runTest {
+            val viewModel =
+                SettingsViewModel(
+                    backupStore = GymbroBackupStore(FakeSettingsBackupDataSource()),
+                    coroutineScope = this,
+                    resetWorkoutHistory = { throw IllegalStateException("Storage failed") },
+                )
+            viewModel.requestHistoryReset()
+            viewModel.confirmHistoryReset()
+            assertTrue(viewModel.uiState.value.isError)
+            assertFalse(viewModel.uiState.value.isBusy)
+            assertEquals("Unable to reset workout history", viewModel.uiState.value.message)
+            viewModel.requestHistoryReset()
+            assertTrue(viewModel.uiState.value.isHistoryResetConfirmationVisible)
+        }
+
+    @Test
+    fun historyResetRequiresConfirmationAndRunsOnlyOnce() =
+        runTest {
+            var resets = 0
+            val viewModel =
+                SettingsViewModel(
+                    backupStore = GymbroBackupStore(FakeSettingsBackupDataSource()),
+                    coroutineScope = this,
+                    resetWorkoutHistory = {
+                        resets++
+                        true
+                    },
+                )
+
+            viewModel.requestHistoryReset()
+            assertTrue(viewModel.uiState.value.isHistoryResetConfirmationVisible)
+            assertEquals(0, resets)
+            viewModel.dismissHistoryReset()
+            viewModel.confirmHistoryReset()
+            assertEquals(0, resets)
+
+            viewModel.requestHistoryReset()
+            viewModel.confirmHistoryReset()
+            viewModel.confirmHistoryReset()
+            assertEquals(1, resets)
+            assertFalse(viewModel.uiState.value.isHistoryResetConfirmationVisible)
+            assertEquals("Workout history reset", viewModel.uiState.value.message)
+        }
+
+    @Test
+    fun historyResetReportsActiveWorkoutAtConfirmation() =
+        runTest {
+            val viewModel =
+                SettingsViewModel(
+                    backupStore = GymbroBackupStore(FakeSettingsBackupDataSource()),
+                    coroutineScope = this,
+                    resetWorkoutHistory = { false },
+                )
+
+            viewModel.requestHistoryReset()
+            viewModel.confirmHistoryReset()
+
+            assertTrue(viewModel.uiState.value.isError)
+            assertFalse(viewModel.uiState.value.isBusy)
+            assertEquals(
+                "Finish or discard the active workout before resetting history",
+                viewModel.uiState.value.message,
+            )
+        }
+
+    @Test
     fun fileExportWritesScopedJsonAndReportsSuccess() =
         runTest {
             val storage = FakeSettingsFileStorage()
