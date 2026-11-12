@@ -21,6 +21,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.brokenpip3.gymbro.ui.theme.GymbroTheme
 import com.brokenpip3.gymbro.ui.theme.ThemeMode
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -29,6 +30,36 @@ import org.junit.runner.RunWith
 class SettingsScreenUiTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun resetHistoryShowsShortConfirmationAndSupportsCancel() {
+        var resets = 0
+        composeRule.setContent {
+            GymbroTheme {
+                var confirming by remember { mutableStateOf(false) }
+                SettingsScreen(
+                    state = SettingsUiState(isHistoryResetConfirmationVisible = confirming),
+                    onRequestHistoryReset = { confirming = true },
+                    onDismissHistoryReset = { confirming = false },
+                    onConfirmHistoryReset = {
+                        resets++
+                        confirming = false
+                    },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Reset workout history and statistics").performScrollTo().performClick()
+        composeRule.onNodeWithText("This permanently deletes all completed workouts and their statistics.").assertIsDisplayed()
+        composeRule.onNodeWithText("Reset").assertIsDisplayed()
+        composeRule.onNodeWithText("Cancel").performClick()
+        composeRule.onNodeWithText("Reset workout history?").assertDoesNotExist()
+        assertEquals(0, resets)
+        composeRule.onNodeWithText("Reset workout history and statistics").performScrollTo().performClick()
+        composeRule.onNodeWithText("Reset").performClick()
+        assertEquals(1, resets)
+        composeRule.onNodeWithText("Reset workout history?").assertDoesNotExist()
+    }
 
     @Test
     fun backupFileSectionShowsScopeButtonsAndImport() {
@@ -40,9 +71,9 @@ class SettingsScreenUiTest {
             }
         }
 
-        composeRule.onNodeWithText("Backup file").assertIsDisplayed()
-        composeRule.onNodeWithText("Export exercises").assertIsDisplayed()
-        composeRule.onNodeWithText("Export exercises + schedules").assertIsDisplayed()
+        composeRule.onNodeWithText("Backup file").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Export exercises").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Export exercises + schedules").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("Export everything").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithText("Import from file").performScrollTo().assertIsDisplayed()
     }

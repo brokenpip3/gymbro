@@ -21,6 +21,28 @@ import org.junit.Test
 @Suppress("LargeClass")
 class WorkoutRepositoryTest {
     @Test
+    fun resetWorkoutHistoryDeletesResultsBeforeRunsInOneTransaction() =
+        runTest {
+            val dao = FakeWorkoutRunDao()
+            val transactions = CountingTransactionRunner()
+            val repository = WorkoutRepository(dao, FakeWorkoutScheduleDao(), FakeWorkoutExerciseDao(), transactions)
+
+            assertEquals(true, repository.resetWorkoutHistory())
+            assertEquals(1, transactions.runCount)
+            assertEquals(listOf("sets", "exercises", "runs"), dao.historyDeletes)
+        }
+
+    @Test
+    fun resetWorkoutHistoryRejectsActiveWorkoutWithoutDeleting() =
+        runTest {
+            val dao = FakeWorkoutRunDao(activeWorkoutRun = unfinishedWorkoutRun())
+            val repository = WorkoutRepository(dao, FakeWorkoutScheduleDao(), FakeWorkoutExerciseDao())
+
+            assertEquals(false, repository.resetWorkoutHistory())
+            assertEquals(emptyList<String>(), dao.historyDeletes)
+        }
+
+    @Test
     fun completedWorkoutEditRejectsForeignSetBeforeWritingValidSet() =
         runTest {
             val first = setResult(id = 24, exerciseResultId = 5, setOrder = 0, reps = 8, weight = 80.0)
@@ -1802,11 +1824,19 @@ private class FakeWorkoutRunDao(
             0
         }
 
-    override suspend fun deleteAllSetResults() = Unit
+    val historyDeletes = mutableListOf<String>()
 
-    override suspend fun deleteAllExerciseResults() = Unit
+    override suspend fun deleteAllSetResults() {
+        historyDeletes += "sets"
+    }
 
-    override suspend fun deleteAllWorkoutRuns() = Unit
+    override suspend fun deleteAllExerciseResults() {
+        historyDeletes += "exercises"
+    }
+
+    override suspend fun deleteAllWorkoutRuns() {
+        historyDeletes += "runs"
+    }
 
     override fun observeCompletedWorkoutRuns(): Flow<List<WorkoutRunEntity>> = workoutRunsFlow
 

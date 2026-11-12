@@ -147,6 +147,17 @@ class WorkoutRepository internal constructor(
         }
     }
 
+    /** Returns false without deleting anything when a workout is active. */
+    suspend fun resetWorkoutHistory(): Boolean =
+        transactionRunner.run {
+            if (workoutRunDao.getActiveWorkoutRun() != null) return@run false
+
+            workoutRunDao.deleteAllSetResults()
+            workoutRunDao.deleteAllExerciseResults()
+            workoutRunDao.deleteAllWorkoutRuns()
+            true
+        }
+
     suspend fun saveCompletedWorkout(
         edit: CompletedWorkoutEdit,
         nowMillis: Long,
