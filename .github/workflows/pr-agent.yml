@@ -22,7 +22,6 @@ jobs:
         github.event.pull_request.author_association
       )
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     permissions:
       contents: read
       issues: write
@@ -33,6 +32,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER__KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          # https://github.com/The-PR-Agent/pr-agent/issues/2930
+          LITELLM.DISABLE_AIOHTTP: "true"
           CONFIG.MODEL: "openrouter/z-ai/glm-5.3-flash"
           CONFIG.MODEL_WEAK: "openrouter/z-ai/glm-5.3-flash"
           CONFIG.FALLBACK_MODELS: '[]'
