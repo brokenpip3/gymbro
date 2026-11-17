@@ -43,8 +43,8 @@ jobs:
           CONFIG.USE_GLOBAL_SETTINGS_FILE: "false"
           CONFIG.ENABLE_PER_DIRECTORY_SETTINGS: "false"
           GITHUB_ACTION_CONFIG.AUTO_REVIEW: "true"
-          GITHUB_ACTION_CONFIG.AUTO_DESCRIBE: "true"
-          GITHUB_ACTION_CONFIG.AUTO_IMPROVE: "true"
+          GITHUB_ACTION_CONFIG.AUTO_DESCRIBE: "false"
+          GITHUB_ACTION_CONFIG.AUTO_IMPROVE: "false"
           GITHUB_ACTION_CONFIG.PR_ACTIONS: '["opened","reopened","ready_for_review","synchronize"]'
           GITHUB_ACTION_CONFIG.HANDLE_PUSH_TRIGGER: "false"
           PR_DESCRIPTION.GENERATE_AI_TITLE: "false"
