@@ -23,6 +23,41 @@ import org.junit.Test
 @Suppress("LargeClass")
 class ResultsViewModelTest {
     @Test
+    fun exerciseMetadataAndOrderingChangesDoNotReloadHistory() =
+        runTest {
+            val source =
+                FakeResultsSource(
+                    workoutRuns = listOf(workoutRun(id = 1, startedAt = 1000, finishedAt = 61000)),
+                    exerciseResultsByRunId = mapOf(1L to listOf(strengthExerciseResult(id = 10, workoutRunId = 1))),
+                    setResultsByExerciseResultId =
+                        mapOf(10L to listOf(setResult(id = 100, exerciseResultId = 10, reps = 5, weight = 20.0))),
+                )
+            val exercise = currentExercise(id = 5, name = "Press")
+            val otherExercise = currentExercise(id = 6, name = "Row")
+            source.exercises.value = listOf(exercise, otherExercise)
+            val vm = ResultsViewModel(source, viewModelScope())
+            advanceUntilIdle()
+            val initialReads = source.exerciseResultReads to source.setResultReads
+            assertTrue(initialReads.first > 0 && initialReads.second > 0)
+            val initialState = vm.uiState.value
+
+            source.exercises.value =
+                listOf(exercise.copy(notes = "New notes", category = "Upper body", updatedAt = 1), otherExercise)
+            advanceUntilIdle()
+            assertEquals(initialReads, source.exerciseResultReads to source.setResultReads)
+            assertEquals(initialState, vm.uiState.value)
+
+            source.exercises.value = source.exercises.value.reversed()
+            advanceUntilIdle()
+            assertEquals(initialReads, source.exerciseResultReads to source.setResultReads)
+
+            source.emitResultChange()
+            advanceUntilIdle()
+            assertTrue(source.exerciseResultReads > initialReads.first)
+            assertTrue(source.setResultReads > initialReads.second)
+        }
+
+    @Test
     fun exerciseRenameRefreshesResultsAndSelectedDetailsWithoutChangingHistory() =
         runTest {
             val snapshot = strengthExerciseResult(id = 10, workoutRunId = 1)
@@ -2273,6 +2308,8 @@ private class FakeResultsSource(
     private var exerciseResultsByRunId: Map<Long, List<ExerciseResultEntity>> = emptyMap(),
     private var setResultsByExerciseResultId: Map<Long, List<SetResultEntity>> = emptyMap(),
 ) : ResultsSource {
+    var exerciseResultReads = 0
+    var setResultReads = 0
     val exercises = MutableStateFlow<List<ExerciseEntity>>(emptyList())
 
     override fun observeExercises(): Flow<List<ExerciseEntity>> = exercises
@@ -2291,12 +2328,15 @@ private class FakeResultsSource(
 
     override fun observeResultChanges(): Flow<Unit> = resultChanges
 
-    override suspend fun getExerciseResults(workoutRunId: Long): List<ExerciseResultEntity> =
-        exerciseResultsByRunId[workoutRunId]
-            .orEmpty()
+    override suspend fun getExerciseResults(workoutRunId: Long): List<ExerciseResultEntity> {
+        exerciseResultReads += 1
+        return exerciseResultsByRunId[workoutRunId].orEmpty()
+    }
 
-    override suspend fun getSetResults(exerciseResultId: Long): List<SetResultEntity> =
-        setResultsByExerciseResultId[exerciseResultId].orEmpty()
+    override suspend fun getSetResults(exerciseResultId: Long): List<SetResultEntity> {
+        setResultReads += 1
+        return setResultsByExerciseResultId[exerciseResultId].orEmpty()
+    }
 
     override suspend fun updateExerciseNotes(
         exerciseResultId: Long,

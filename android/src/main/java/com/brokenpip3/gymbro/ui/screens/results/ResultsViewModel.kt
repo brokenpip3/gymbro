@@ -17,7 +17,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 interface ResultsSource {
@@ -161,15 +163,20 @@ class ResultsViewModel(
 
     init {
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            val exerciseNames =
+                source
+                    .observeExercises()
+                    .map { exercises -> exercises.associate { exercise -> exercise.id to exercise.name } }
+                    .distinctUntilChanged()
             source
                 .observeWorkoutRuns()
                 .combine(source.observeResultChanges()) { workoutRuns, _ -> workoutRuns }
                 .combine(selectedStatsRange) { workoutRuns, statsRange -> workoutRuns to statsRange }
-                .combine(source.observeExercises()) { (workoutRuns, statsRange), exercises ->
+                .combine(exerciseNames) { (workoutRuns, statsRange), names ->
                     workoutRuns.toResultsUiState(
                         statsRange = statsRange,
                         now = clock(),
-                        exerciseNames = exercises.associate { exercise -> exercise.id to exercise.name },
+                        exerciseNames = names,
                     )
                 }.collectLatest { state ->
                     _uiState.value =
