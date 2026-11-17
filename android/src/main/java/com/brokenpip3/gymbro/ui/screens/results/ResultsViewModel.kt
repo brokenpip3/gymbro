@@ -2,6 +2,7 @@ package com.brokenpip3.gymbro.ui.screens.results
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.brokenpip3.gymbro.data.entities.ExerciseEntity
 import com.brokenpip3.gymbro.data.entities.ExerciseResultEntity
 import com.brokenpip3.gymbro.data.entities.SetResultEntity
 import com.brokenpip3.gymbro.data.entities.WorkoutRunEntity
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -28,6 +30,8 @@ interface ResultsSource {
     fun observeWorkoutRuns(): Flow<List<WorkoutRunEntity>>
 
     fun observeResultChanges(): Flow<Unit> = flowOf(Unit)
+
+    fun observeExercises(): Flow<List<ExerciseEntity>> = flowOf(emptyList())
 
     suspend fun getExerciseResults(workoutRunId: Long): List<ExerciseResultEntity>
 
@@ -57,6 +61,8 @@ class WorkoutRepositoryResultsSource(
     }
 
     override fun observeWorkoutRuns(): Flow<List<WorkoutRunEntity>> = repository.observeCompletedWorkoutRuns()
+
+    override fun observeExercises(): Flow<List<ExerciseEntity>> = repository.observeAvailableExercises()
 
     override fun observeResultChanges(): Flow<Unit> =
         combine(
@@ -157,12 +163,22 @@ class ResultsViewModel(
 
     init {
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            val exerciseNames =
+                source
+                    .observeExercises()
+                    .map { exercises -> exercises.associate { exercise -> exercise.id to exercise.name } }
+                    .distinctUntilChanged()
             source
                 .observeWorkoutRuns()
                 .combine(source.observeResultChanges()) { workoutRuns, _ -> workoutRuns }
                 .combine(selectedStatsRange) { workoutRuns, statsRange -> workoutRuns to statsRange }
-                .map { (workoutRuns, statsRange) -> workoutRuns.toResultsUiState(statsRange, clock()) }
-                .collectLatest { state ->
+                .combine(exerciseNames) { (workoutRuns, statsRange), names ->
+                    workoutRuns.toResultsUiState(
+                        statsRange = statsRange,
+                        now = clock(),
+                        exerciseNames = names,
+                    )
+                }.collectLatest { state ->
                     _uiState.value =
                         state.copy(
                             selectedExerciseDetail =
@@ -258,6 +274,7 @@ class ResultsViewModel(
     private suspend fun List<WorkoutRunEntity>.toResultsUiState(
         statsRange: ResultsStatsRange,
         now: Long,
+        exerciseNames: Map<Long, String>,
     ): ResultsUiState {
         val completedRuns =
             filter { workoutRun -> workoutRun.finishedAt != null }
@@ -274,6 +291,8 @@ class ResultsViewModel(
                         ResultExerciseDetail(
                             exerciseResult = exerciseResult,
                             setResults = source.getSetResults(exerciseResult.id),
+                            displayName =
+                                exerciseNames[exerciseResult.exerciseId] ?: exerciseResult.exerciseNameSnapshot,
                         )
                     }
 

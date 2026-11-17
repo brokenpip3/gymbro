@@ -22,28 +22,38 @@ jobs:
         github.event.pull_request.author_association
       )
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     permissions:
       contents: read
       issues: write
       pull-requests: write
     steps:
-      - name: PR-review
+      - name: Suggest PR code improvements
         uses: docker://pragent/pr-agent@sha256:548e894a88071180832b2f4233f734d0acd0db1a879e2fcbaa70bac8b8372ebe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER__KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          # https://github.com/The-PR-Agent/pr-agent/issues/2930
+          LITELLM.DISABLE_AIOHTTP: "true"
           CONFIG.MODEL: "openrouter/z-ai/glm-5.3-flash"
           CONFIG.MODEL_WEAK: "openrouter/z-ai/glm-5.3-flash"
           CONFIG.FALLBACK_MODELS: '[]'
           CONFIG.RESTRICTED_MODE: "true"
+          CONFIG.SYSTEM_INSTRUCTIONS: |
+            Suggest changes only when you have high confidence that the changed code
+            contains a concrete problem and your proposed fix addresses it.
+            Support each suggestion with evidence from the code and available context.
+            Skip speculative issues, personal style preferences, and findings that
+            require assumptions you cannot verify. Return no suggestions when none qualify.
+            Be direct and concise. Explain the problem and fix in one or two short
+            sentences per suggestion. Avoid introductions, repeated context, lengthy
+            descriptions, and summaries.
           CONFIG.ENABLE_AUTO_APPROVAL: "false"
           CONFIG.IGNORE_PR_AUTHORS: '["^dependabot\\[bot\\]$"]'
           CONFIG.USE_REPO_SETTINGS_FILE: "false"
           CONFIG.USE_GLOBAL_SETTINGS_FILE: "false"
           CONFIG.ENABLE_PER_DIRECTORY_SETTINGS: "false"
-          GITHUB_ACTION_CONFIG.AUTO_REVIEW: "true"
-          GITHUB_ACTION_CONFIG.AUTO_DESCRIBE: "true"
+          GITHUB_ACTION_CONFIG.AUTO_REVIEW: "false"
+          GITHUB_ACTION_CONFIG.AUTO_DESCRIBE: "false"
           GITHUB_ACTION_CONFIG.AUTO_IMPROVE: "true"
           GITHUB_ACTION_CONFIG.PR_ACTIONS: '["opened","reopened","ready_for_review","synchronize"]'
           GITHUB_ACTION_CONFIG.HANDLE_PUSH_TRIGGER: "false"
