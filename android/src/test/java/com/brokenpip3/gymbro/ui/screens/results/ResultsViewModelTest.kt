@@ -1,5 +1,6 @@
 package com.brokenpip3.gymbro.ui.screens.results
 
+import com.brokenpip3.gymbro.data.entities.ExerciseEntity
 import com.brokenpip3.gymbro.data.entities.ExerciseResultEntity
 import com.brokenpip3.gymbro.data.entities.SetResultEntity
 import com.brokenpip3.gymbro.data.entities.WorkoutRunEntity
@@ -21,6 +22,144 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 @Suppress("LargeClass")
 class ResultsViewModelTest {
+    @Test
+    fun exerciseRenameRefreshesResultsAndSelectedDetailsWithoutChangingHistory() =
+        runTest {
+            val snapshot = strengthExerciseResult(id = 10, workoutRunId = 1)
+            val source =
+                FakeResultsSource(
+                    workoutRuns = listOf(workoutRun(id = 1, startedAt = 1000, finishedAt = 61000)),
+                    exerciseResultsByRunId = mapOf(1L to listOf(snapshot)),
+                    setResultsByExerciseResultId =
+                        mapOf(10L to listOf(setResult(id = 100, exerciseResultId = 10, reps = 5, weight = 20.0))),
+                )
+            source.exercises.value = listOf(currentExercise(id = 5, name = "Barbell press"))
+            val vm = ResultsViewModel(source, viewModelScope())
+            advanceUntilIdle()
+            val initial = vm.uiState.value
+            assertEquals("Barbell press", initial.exerciseStats.single().exerciseName)
+            assertEquals(
+                "Barbell press",
+                initial.workoutDetails
+                    .single()
+                    .exercises
+                    .single()
+                    .exerciseName,
+            )
+            assertEquals(TrackingMode.Strength, initial.exerciseStats.single().trackingMode)
+            vm.selectExerciseStats(initial.exerciseStats.single())
+            vm.selectWorkout(initial.recentWorkouts.single())
+
+            source.exercises.value = listOf(currentExercise(id = 5, name = "Renamed press"))
+            advanceUntilIdle()
+            val renamed = vm.uiState.value
+            assertEquals("Renamed press", renamed.exerciseStats.single().exerciseName)
+            assertEquals("Renamed press", renamed.exerciseDetails.single().exerciseName)
+            assertEquals(
+                "Renamed press",
+                renamed.workoutDetails
+                    .single()
+                    .exercises
+                    .single()
+                    .exerciseName,
+            )
+            assertEquals("Renamed press", renamed.selectedExerciseDetail?.exerciseName)
+            assertEquals(
+                "Renamed press",
+                renamed.selectedWorkoutDetail
+                    ?.exercises
+                    ?.single()
+                    ?.exerciseName,
+            )
+            assertEquals(initial.exerciseStats.single().points, renamed.exerciseStats.single().points)
+            assertEquals(snapshot, source.getExerciseResults(1).single())
+
+            source.exercises.value = emptyList()
+            advanceUntilIdle()
+            val deleted = vm.uiState.value
+            assertEquals("Bench press", deleted.exerciseStats.single().exerciseName)
+            assertEquals("Bench press", deleted.selectedExerciseDetail?.exerciseName)
+            assertEquals(
+                "Bench press",
+                deleted.selectedWorkoutDetail
+                    ?.exercises
+                    ?.single()
+                    ?.exerciseName,
+            )
+            assertEquals(snapshot, source.getExerciseResults(1).single())
+        }
+
+    @Test
+    fun currentNamesUseIdsAndKeepMissingDefinitionsAndHistoricalModesSeparate() =
+        runTest {
+            val results =
+                listOf(
+                    exerciseResult(id = 10, workoutRunId = 1, exerciseId = 5, exerciseName = "Old A"),
+                    exerciseResult(id = 11, workoutRunId = 1, exerciseId = 6, exerciseName = "Old B"),
+                    exerciseResult(id = 12, workoutRunId = 1, exerciseId = 99, exerciseName = "Missing"),
+                    exerciseResult(id = 13, workoutRunId = 1, exerciseId = null, exerciseName = "Deleted"),
+                    exerciseResult(
+                        id = 14,
+                        workoutRunId = 1,
+                        exerciseId = 5,
+                        exerciseName = "Old timed A",
+                        trackingMode = TrackingMode.Timed,
+                    ),
+                )
+            val source =
+                FakeResultsSource(
+                    workoutRuns = listOf(workoutRun(id = 1, startedAt = 1000, finishedAt = 61000)),
+                    exerciseResultsByRunId = mapOf(1L to results),
+                    setResultsByExerciseResultId =
+                        results.associate { result ->
+                            result.id to
+                                listOf(
+                                    setResult(
+                                        id = result.id * 10,
+                                        exerciseResultId = result.id,
+                                        reps = 5,
+                                        durationSeconds = 60,
+                                    ),
+                                )
+                        },
+                )
+            source.exercises.value =
+                listOf(
+                    currentExercise(id = 5, name = "Shared name"),
+                    currentExercise(id = 6, name = "Shared name"),
+                    currentExercise(id = 7, name = "Missing"),
+                    currentExercise(id = 8, name = "Deleted"),
+                )
+            val vm = ResultsViewModel(source, viewModelScope())
+            advanceUntilIdle()
+            val state = vm.uiState.value
+            assertEquals(5, state.exerciseStats.size)
+            assertEquals(
+                setOf(5L, 6L),
+                state.exerciseStats
+                    .filter { it.exerciseName == "Shared name" }
+                    .map { it.exerciseId }
+                    .toSet(),
+            )
+            assertEquals(
+                setOf(TrackingMode.Bodyweight, TrackingMode.Timed),
+                state.exerciseStats
+                    .filter { it.exerciseId == 5L }
+                    .map { it.trackingMode }
+                    .toSet(),
+            )
+            assertEquals("Missing", state.exerciseStats.single { it.exerciseId == 99L }.exerciseName)
+            assertEquals("Deleted", state.exerciseStats.single { it.exerciseId == null }.exerciseName)
+            assertEquals(
+                listOf("Shared name", "Shared name", "Missing", "Deleted", "Shared name"),
+                state.workoutDetails
+                    .single()
+                    .exercises
+                    .map { it.exerciseName },
+            )
+            assertEquals(results, source.getExerciseResults(1))
+        }
+
     @Test
     fun invalidDraftAndRangeChangesKeepEditorOpen() =
         runTest {
@@ -2134,6 +2273,10 @@ private class FakeResultsSource(
     private var exerciseResultsByRunId: Map<Long, List<ExerciseResultEntity>> = emptyMap(),
     private var setResultsByExerciseResultId: Map<Long, List<SetResultEntity>> = emptyMap(),
 ) : ResultsSource {
+    val exercises = MutableStateFlow<List<ExerciseEntity>>(emptyList())
+
+    override fun observeExercises(): Flow<List<ExerciseEntity>> = exercises
+
     private val workoutRuns = MutableStateFlow(workoutRuns)
     private val resultChanges = MutableSharedFlow<Unit>(replay = 1)
     val exerciseNoteUpdates = mutableListOf<Pair<Long, String?>>()
@@ -2292,4 +2435,17 @@ private fun setResult(
         distance = distance,
         notes = notes,
         isCompleted = isCompleted,
+    )
+
+private fun currentExercise(
+    id: Long,
+    name: String,
+): ExerciseEntity =
+    ExerciseEntity(
+        id = id,
+        name = name,
+        notes = null,
+        trackingMode = TrackingMode.Bodyweight.databaseValue,
+        createdAt = 0,
+        updatedAt = 0,
     )

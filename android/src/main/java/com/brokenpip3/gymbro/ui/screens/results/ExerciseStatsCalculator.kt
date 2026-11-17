@@ -19,6 +19,7 @@ internal data class ResultRunDetail(
 internal data class ResultExerciseDetail(
     val exerciseResult: ExerciseResultEntity,
     val setResults: List<SetResultEntity>,
+    val displayName: String = exerciseResult.exerciseNameSnapshot,
 )
 
 internal data class ResultExerciseKey(
@@ -45,7 +46,7 @@ private fun ResultExerciseDetail.toWorkoutExerciseDetailUiModel(): WorkoutExerci
     val trackingMode = exerciseResult.trackingModeSnapshot.toTrackingMode()
     return WorkoutExerciseDetailUiModel(
         exerciseResultId = exerciseResult.id,
-        exerciseName = exerciseResult.exerciseNameSnapshot,
+        exerciseName = displayName,
         trackingMode = trackingMode,
         notes = exerciseResult.notes,
         sets =
@@ -182,7 +183,7 @@ private fun ResultRunDetail.toExercisePoints(): List<ExercisePoint> {
         } else {
             ExercisePoint(
                 selectionKey = selectionKey,
-                exerciseName = displayExercise.exerciseResult.exerciseNameSnapshot,
+                exerciseName = displayExercise.displayName,
                 trackingMode = trackingMode,
                 workoutRun = workoutRun,
                 value = value,
