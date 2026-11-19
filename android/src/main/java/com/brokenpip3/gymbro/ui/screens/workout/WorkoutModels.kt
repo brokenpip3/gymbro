@@ -1,8 +1,10 @@
 package com.brokenpip3.gymbro.ui.screens.workout
 
+import com.brokenpip3.gymbro.data.repositories.WorkoutScheduleUpdate
 import com.brokenpip3.gymbro.domain.TrackingMode
 
 data class ActiveWorkoutUiState(
+    val finishState: WorkoutFinishState = WorkoutFinishState(),
     val isLoading: Boolean = true,
     val activeWorkout: ActiveWorkoutUiModel? = null,
     val errorMessage: String? = null,
@@ -119,4 +121,11 @@ data class ExerciseInfoUiModel(
     val headline: String?,
     val history: List<String>,
     val exerciseId: Long? = null,
+)
+
+data class WorkoutFinishState(
+    val isPreparing: Boolean = false,
+    val isSaving: Boolean = false,
+    val scheduleUpdate: WorkoutScheduleUpdate? = null,
+    val error: String? = null,
 )

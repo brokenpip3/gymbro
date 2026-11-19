@@ -139,6 +139,8 @@ fun WorkoutRoute(
         onDeleteExercise = viewModel::deleteExerciseResult,
         onUpdateExerciseNotes = viewModel::updateExerciseNotes,
         onUpdateWorkoutNotes = viewModel::updateWorkoutNotes,
+        onPrepareFinishWorkout = viewModel::prepareFinishWorkout,
+        onFinishWorkoutUpdatingSchedule = viewModel::finishWorkoutUpdatingSchedule,
         onFinishWorkout = viewModel::finishWorkout,
         onDiscardWorkout = viewModel::discardWorkout,
         onShowAddExerciseDialog = viewModel::showAddExerciseDialog,
@@ -183,6 +185,8 @@ fun ActiveWorkoutScreen(
     onDeleteExercise: (Long) -> Unit = {},
     onUpdateExerciseNotes: (Long, String) -> Unit = { _, _ -> },
     onUpdateWorkoutNotes: (String) -> Unit = {},
+    onPrepareFinishWorkout: () -> Unit = {},
+    onFinishWorkoutUpdatingSchedule: () -> Unit = {},
     onFinishWorkout: () -> Unit = {},
     onDiscardWorkout: () -> Unit = {},
     onShowAddExerciseDialog: () -> Unit = {},
@@ -205,6 +209,8 @@ fun ActiveWorkoutScreen(
             onDeleteExercise = onDeleteExercise,
             onUpdateExerciseNotes = onUpdateExerciseNotes,
             onUpdateWorkoutNotes = onUpdateWorkoutNotes,
+            onPrepareFinishWorkout = onPrepareFinishWorkout,
+            onFinishWorkoutUpdatingSchedule = onFinishWorkoutUpdatingSchedule,
             onFinishWorkout = onFinishWorkout,
             onDiscardWorkout = onDiscardWorkout,
             onShowAddExerciseDialog = onShowAddExerciseDialog,
@@ -233,6 +239,7 @@ fun ActiveWorkoutScreen(
         else -> {
             ActiveWorkoutContent(
                 workout = activeWorkout,
+                finishState = uiState.finishState,
                 errorMessage = uiState.errorMessage,
                 deletedSetForUndo = uiState.deletedSetForUndo,
                 actions = actions,
@@ -272,6 +279,8 @@ private data class ActiveWorkoutActions(
     val onDeleteExercise: (Long) -> Unit,
     val onUpdateExerciseNotes: (Long, String) -> Unit,
     val onUpdateWorkoutNotes: (String) -> Unit,
+    val onPrepareFinishWorkout: () -> Unit,
+    val onFinishWorkoutUpdatingSchedule: () -> Unit,
     val onFinishWorkout: () -> Unit,
     val onDiscardWorkout: () -> Unit,
     val onShowAddExerciseDialog: () -> Unit,
@@ -283,6 +292,7 @@ private data class ActiveWorkoutActions(
 @Suppress("LongMethod")
 private fun ActiveWorkoutContent(
     workout: ActiveWorkoutUiModel,
+    finishState: WorkoutFinishState,
     errorMessage: String?,
     deletedSetForUndo: DeletedSetSnapshot?,
     actions: ActiveWorkoutActions,
@@ -349,7 +359,10 @@ private fun ActiveWorkoutContent(
 
             item {
                 WorkoutActionRow(
-                    onFinishWorkout = { isFinishConfirmationVisible = true },
+                    onFinishWorkout = {
+                        isFinishConfirmationVisible = true
+                        actions.onPrepareFinishWorkout()
+                    },
                     onDiscardWorkout = { isDiscardConfirmationVisible = true },
                 )
             }
@@ -363,10 +376,11 @@ private fun ActiveWorkoutContent(
 
     if (isFinishConfirmationVisible) {
         FinishWorkoutConfirmationDialog(
+            state = finishState,
             onDismiss = { isFinishConfirmationVisible = false },
-            onConfirm = {
+            onConfirm = { updateSchedule ->
                 isFinishConfirmationVisible = false
-                actions.onFinishWorkout()
+                if (updateSchedule) actions.onFinishWorkoutUpdatingSchedule() else actions.onFinishWorkout()
             },
         )
     }
@@ -517,28 +531,6 @@ private fun WorkoutProgress(progress: WorkoutProgressUiModel) {
             modifier = Modifier.fillMaxWidth(),
         )
     }
-}
-
-@Composable
-private fun FinishWorkoutConfirmationDialog(
-    onDismiss: () -> Unit,
-    onConfirm: () -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(text = "Finish workout?") },
-        text = { Text(text = "This workout will move to Results.") },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(text = "Finish")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = "Keep training")
-            }
-        },
-    )
 }
 
 @Composable

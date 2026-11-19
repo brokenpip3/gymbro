@@ -21,6 +21,189 @@ import org.junit.Test
 @Suppress("LargeClass")
 class WorkoutRepositoryTest {
     @Test
+    fun workoutEditsInvalidatePreviouslyReviewedDefaults() =
+        runTest {
+            for (change in listOf("metrics", "completion", "exercises")) {
+                val set = setResult(100, 10, 0, reps = 8, weight = 20.0)
+                val dao =
+                    FakeWorkoutRunDao(
+                        workoutRuns = mutableMapOf(3L to unfinishedWorkoutRun()),
+                        exerciseResults = listOf(exerciseResult(10, 3, 5, "Press", "strength", 0)),
+                        setResults = listOf(set),
+                    )
+                val schedules = FakeWorkoutScheduleDao(schedule(7, "Push Day"))
+                val repository =
+                    WorkoutRepository(
+                        dao,
+                        schedules,
+                        FakeWorkoutExerciseDao(mapOf(5L to exercise(5, "Press", "strength"))),
+                    )
+                val preview = requireNotNull(repository.getScheduleUpdatePreview(3))
+                when (change) {
+                    "metrics" -> dao.updateSetResult(set.copy(weight = 30.0))
+                    "completion" -> dao.updateSetResult(set.copy(isCompleted = false))
+                    else -> dao.deleteExerciseResult(10)
+                }
+                try {
+                    repository.finishWorkout(3, 2000, preview)
+                    fail("Stale $change preview accepted")
+                } catch (_: IllegalArgumentException) {
+                    assertEquals(null, dao.updatedWorkoutRun)
+                    assertEquals(null, schedules.savedSchedule)
+                }
+            }
+        }
+
+    @Test
+    fun changedTrackingModeDisablesScheduleUpdate() =
+        runTest {
+            val dao =
+                FakeWorkoutRunDao(
+                    workoutRuns = mutableMapOf(3L to unfinishedWorkoutRun()),
+                    exerciseResults = listOf(exerciseResult(10, 3, 5, "Press", "strength", 0)),
+                )
+            val repository =
+                WorkoutRepository(
+                    dao,
+                    FakeWorkoutScheduleDao(schedule(7, "Push Day")),
+                    FakeWorkoutExerciseDao(mapOf(5L to exercise(5, "Press", "timed"))),
+                )
+            org.junit.Assert.assertNotNull(repository.getScheduleUpdatePreview(3)?.unavailableReason)
+        }
+
+    @Test
+    fun removingAllExercisesCanSaveAnEmptySchedule() =
+        runTest {
+            val dao = FakeWorkoutRunDao(workoutRuns = mutableMapOf(3L to unfinishedWorkoutRun()))
+            val schedules = FakeWorkoutScheduleDao(schedule(7, "Push Day"), listOf(scheduleExercise(7, 5, 0)))
+            val repository = WorkoutRepository(dao, schedules, FakeWorkoutExerciseDao())
+            val preview = requireNotNull(repository.getScheduleUpdatePreview(3))
+            assertEquals(emptyList<WorkoutScheduleExercise>(), preview.exercises)
+            assertEquals(null, preview.unavailableReason)
+            repository.finishWorkout(3, 2000, preview)
+            assertEquals(emptyList<ScheduleExerciseEntity>(), schedules.savedAssignments)
+            assertEquals(2000L, dao.updatedWorkoutRun?.finishedAt)
+        }
+
+    @Test
+    fun schedulePreviewDerivesCompletedDefaultsAndSaveFinishesInOneTransaction() =
+        runTest {
+            val strength = exerciseResult(10, 3, 5, "Old press", "strength", 2)
+            val timed = exerciseResult(11, 3, 6, "Run", "timed", 4)
+            val empty = exerciseResult(12, 3, 5, "Press", "strength", 6)
+            val dao =
+                FakeWorkoutRunDao(
+                    workoutRuns = mutableMapOf(3L to unfinishedWorkoutRun()),
+                    exerciseResults = listOf(empty, timed, strength),
+                    setResults =
+                        listOf(
+                            setResult(100, 10, 3, reps = 6, weight = 30.0).copy(isCompleted = true),
+                            setResult(101, 10, 1, reps = 8, weight = 20.0).copy(isCompleted = true),
+                            setResult(102, 10, 5, reps = 1, weight = 99.0).copy(isCompleted = false),
+                            setResult(103, 11, 0, durationSeconds = 60, distance = 0.5).copy(isCompleted = true),
+                        ),
+                )
+            val schedules = FakeWorkoutScheduleDao(schedule = schedule(7, "Push Day"))
+            val transactions = CountingTransactionRunner()
+            val repository =
+                WorkoutRepository(
+                    dao,
+                    schedules,
+                    FakeWorkoutExerciseDao(
+                        mapOf(5L to exercise(5, "Press", "strength"), 6L to exercise(6, "Run", "timed")),
+                    ),
+                    transactions,
+                )
+            val preview = requireNotNull(repository.getScheduleUpdatePreview(3))
+            assertEquals(null, preview.unavailableReason)
+            assertEquals(listOf("Press", "Run", "Press"), preview.exercises.map { it.name })
+            assertEquals(
+                listOf(
+                    scheduleExercise(7, 5, 0, targetSets = 2, targetReps = 6, targetWeight = 30.0),
+                    scheduleExercise(7, 6, 1, targetSets = 1, targetDurationSeconds = 60, targetDistance = 0.5),
+                    scheduleExercise(7, 5, 2),
+                ),
+                preview.exercises.map { it.defaults },
+            )
+            val before = transactions.runCount
+            repository.finishWorkout(3, 2000, preview)
+            assertEquals(before + 1, transactions.runCount)
+            assertEquals(preview.exercises.map { it.defaults }, schedules.savedAssignments)
+            assertEquals(2000L, schedules.savedSchedule?.updatedAt)
+            assertEquals(2000L, dao.updatedWorkoutRun?.finishedAt)
+            assertEquals(strength, dao.getExerciseResults(3).first { it.id == 10L })
+        }
+
+    @Test
+    fun unchangedScheduleDoesNotOfferDefaultUpdates() =
+        runTest {
+            val dao =
+                FakeWorkoutRunDao(
+                    workoutRuns = mutableMapOf(3L to unfinishedWorkoutRun()),
+                    exerciseResults = listOf(exerciseResult(10, 3, 5, "Press", "strength", 4)),
+                )
+            val repository =
+                WorkoutRepository(
+                    dao,
+                    FakeWorkoutScheduleDao(schedule(7, "Push Day"), listOf(scheduleExercise(7, 5, 0))),
+                    FakeWorkoutExerciseDao(mapOf(5L to exercise(5, "Press", "strength"))),
+                )
+            assertEquals(null, repository.getScheduleUpdatePreview(3))
+        }
+
+    @Test
+    fun unavailableScheduleUpdatesNeverBlockNormalFinishing() =
+        runTest {
+            for (missingSchedule in listOf(true, false)) {
+                val dao =
+                    FakeWorkoutRunDao(
+                        workoutRuns = mutableMapOf(3L to unfinishedWorkoutRun()),
+                        exerciseResults = listOf(exerciseResult(10, 3, null, "Deleted", "strength", 0)),
+                    )
+                val schedules =
+                    FakeWorkoutScheduleDao(schedule = if (missingSchedule) null else schedule(7, "Push Day"))
+                val repository = WorkoutRepository(dao, schedules, FakeWorkoutExerciseDao())
+                val preview = requireNotNull(repository.getScheduleUpdatePreview(3))
+                org.junit.Assert.assertNotNull(preview.unavailableReason)
+                try {
+                    repository.finishWorkout(3, 2000, preview)
+                    fail("Unavailable schedule update accepted")
+                } catch (_: IllegalArgumentException) {
+                    assertEquals(null, dao.updatedWorkoutRun)
+                    assertEquals(null, schedules.savedSchedule)
+                }
+                repository.finishWorkout(3, 2000)
+                assertEquals(2000L, dao.updatedWorkoutRun?.finishedAt)
+            }
+        }
+
+    @Test
+    fun staleSchedulePreviewIsRejectedBeforeAnyWrites() =
+        runTest {
+            val dao =
+                FakeWorkoutRunDao(
+                    workoutRuns = mutableMapOf(3L to unfinishedWorkoutRun()),
+                    exerciseResults = listOf(exerciseResult(10, 3, 5, "Press", "strength", 0)),
+                )
+            val schedules = FakeWorkoutScheduleDao(schedule(7, "Push Day"))
+            val repository =
+                WorkoutRepository(
+                    dao,
+                    schedules,
+                    FakeWorkoutExerciseDao(mapOf(5L to exercise(5, "Press", "strength"))),
+                )
+            val preview = requireNotNull(repository.getScheduleUpdatePreview(3))
+            schedules.currentSchedule = schedules.currentSchedule?.copy(updatedAt = 500)
+            try {
+                repository.finishWorkout(3, 2000, preview)
+                fail("Stale preview accepted")
+            } catch (_: IllegalArgumentException) {
+                assertEquals(null, dao.updatedWorkoutRun)
+                assertEquals(null, schedules.savedSchedule)
+            }
+        }
+
+    @Test
     fun resetWorkoutHistoryDeletesResultsBeforeRunsInOneTransaction() =
         runTest {
             val dao = FakeWorkoutRunDao()
@@ -1751,6 +1934,7 @@ private class FakeWorkoutRunDao(
 
     override suspend fun updateSetResult(setResult: SetResultEntity) {
         updatedSetResult = setResult
+        storedSetResults.replaceSet(setResult.id) { setResult }
     }
 
     override suspend fun updateSetOrder(
@@ -1867,11 +2051,15 @@ private class FakeWorkoutScheduleDao(
     private val schedule: ScheduleEntity? = null,
     private val scheduleExercises: List<ScheduleExerciseEntity> = emptyList(),
 ) : ScheduleDao {
+    var currentSchedule = schedule
+    var savedSchedule: ScheduleEntity? = null
+    var savedAssignments: List<ScheduleExerciseEntity> = emptyList()
+
     override fun observeSchedules(): Flow<List<ScheduleEntity>> = MutableStateFlow(emptyList())
 
     override fun observeSchedule(id: Long): Flow<ScheduleEntity?> = MutableStateFlow(schedule)
 
-    override suspend fun getSchedule(id: Long): ScheduleEntity? = schedule
+    override suspend fun getSchedule(id: Long): ScheduleEntity? = currentSchedule
 
     override suspend fun getAllSchedules(): List<ScheduleEntity> = listOfNotNull(schedule)
 
@@ -1887,7 +2075,9 @@ private class FakeWorkoutScheduleDao(
 
     override suspend fun insertSchedules(schedules: List<ScheduleEntity>) = Unit
 
-    override suspend fun updateSchedule(schedule: ScheduleEntity) = Unit
+    override suspend fun updateSchedule(schedule: ScheduleEntity) {
+        savedSchedule = schedule
+    }
 
     override suspend fun deleteSchedule(id: Long): Int = 1
 
@@ -1897,7 +2087,9 @@ private class FakeWorkoutScheduleDao(
 
     override suspend fun insertScheduleExercise(scheduleExercise: ScheduleExerciseEntity): Long = 1
 
-    override suspend fun insertScheduleExercises(scheduleExercises: List<ScheduleExerciseEntity>) = Unit
+    override suspend fun insertScheduleExercises(scheduleExercises: List<ScheduleExerciseEntity>) {
+        savedAssignments = scheduleExercises
+    }
 
     override suspend fun updateScheduleExercise(scheduleExercise: ScheduleExerciseEntity) = Unit
 
