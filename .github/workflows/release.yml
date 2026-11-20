@@ -36,7 +36,7 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: v1-${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          key: v1-${{ runner.os }}-gradle-${{ hashFiles('flake.nix', 'flake.lock', 'justfile', 'gradle.properties', 'settings.gradle.kts', 'build.gradle.kts', 'android/build.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
             v1-${{ runner.os }}-gradle-
 

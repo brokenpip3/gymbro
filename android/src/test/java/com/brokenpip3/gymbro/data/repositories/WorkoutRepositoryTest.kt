@@ -21,6 +21,25 @@ import org.junit.Test
 @Suppress("LargeClass")
 class WorkoutRepositoryTest {
     @Test
+    fun scheduleSaveRejectsMissingOrAlreadyFinishedWorkoutWithoutWriting() =
+        runTest {
+            for (run in listOf(null, unfinishedWorkoutRun(finishedAt = 1500))) {
+                val dao = FakeWorkoutRunDao(workoutRuns = listOfNotNull(run).associateBy { it.id }.toMutableMap())
+                val schedules = FakeWorkoutScheduleDao()
+                val repository = WorkoutRepository(dao, schedules, FakeWorkoutExerciseDao())
+                val preview = WorkoutScheduleUpdate(3, null, emptyList(), emptyList())
+                try {
+                    repository.finishWorkout(3, 2000, preview)
+                    fail("Cannot report a schedule save for a missing or finished workout")
+                } catch (_: IllegalArgumentException) {
+                    assertEquals(null, dao.updatedWorkoutRun)
+                    assertEquals(null, schedules.savedSchedule)
+                    assertEquals(emptyList<ScheduleExerciseEntity>(), schedules.savedAssignments)
+                }
+            }
+        }
+
+    @Test
     fun workoutEditsInvalidatePreviouslyReviewedDefaults() =
         runTest {
             for (change in listOf("metrics", "completion", "exercises")) {

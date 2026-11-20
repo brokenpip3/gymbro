@@ -148,8 +148,11 @@ class WorkoutRepository internal constructor(
         scheduleUpdate: WorkoutScheduleUpdate? = null,
     ) {
         transactionRunner.run {
-            val workoutRun = workoutRunDao.getWorkoutRun(workoutRunId) ?: return@run
-            if (workoutRun.finishedAt != null) return@run
+            val workoutRun = workoutRunDao.getWorkoutRun(workoutRunId)
+            require(scheduleUpdate == null || (workoutRun != null && workoutRun.finishedAt == null)) {
+                "The workout is missing or already finished. The schedule was not updated."
+            }
+            if (workoutRun == null || workoutRun.finishedAt != null) return@run
             if (scheduleUpdate != null) {
                 WorkoutScheduleUpdater(workoutRunDao, scheduleDao, exerciseDao).save(
                     workoutRun,
