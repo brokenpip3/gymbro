@@ -10,10 +10,12 @@ import com.brokenpip3.gymbro.data.entities.ExerciseResultEntity
 import com.brokenpip3.gymbro.data.entities.SetResultEntity
 import com.brokenpip3.gymbro.data.entities.WorkoutRunEntity
 import com.brokenpip3.gymbro.data.repositories.WorkoutRepository
+import com.brokenpip3.gymbro.data.repositories.WorkoutScheduleUpdate
 import com.brokenpip3.gymbro.domain.TrackingMode
 import com.brokenpip3.gymbro.ui.screens.results.ResultExerciseDetail
 import com.brokenpip3.gymbro.ui.screens.results.ResultRunDetail
 import com.brokenpip3.gymbro.ui.screens.results.detailFor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -125,6 +127,14 @@ interface ActiveWorkoutSource {
     suspend fun restoreSet(snapshot: DeletedSetSnapshot): Unit = unsupportedRestoreSet()
 
     suspend fun deleteExerciseResult(exerciseResultId: Long)
+
+    suspend fun getScheduleUpdatePreview(workoutRunId: Long): WorkoutScheduleUpdate? = null
+
+    suspend fun finishWorkoutUpdatingSchedule(
+        workoutRunId: Long,
+        nowMillis: Long,
+        scheduleUpdate: WorkoutScheduleUpdate,
+    ): Unit = error("Schedule updates are unavailable")
 
     suspend fun finishWorkout(
         workoutRunId: Long,
@@ -291,6 +301,17 @@ class WorkoutRepositoryActiveWorkoutSource(
         repository.deleteExerciseFromWorkout(exerciseResultId)
     }
 
+    override suspend fun getScheduleUpdatePreview(workoutRunId: Long): WorkoutScheduleUpdate? =
+        repository.getScheduleUpdatePreview(workoutRunId)
+
+    override suspend fun finishWorkoutUpdatingSchedule(
+        workoutRunId: Long,
+        nowMillis: Long,
+        scheduleUpdate: WorkoutScheduleUpdate,
+    ) {
+        repository.finishWorkout(workoutRunId, nowMillis, scheduleUpdate)
+    }
+
     override suspend fun finishWorkout(
         workoutRunId: Long,
         nowMillis: Long,
@@ -348,6 +369,8 @@ class ActiveWorkoutViewModel(
                     _uiState.value =
                         if (state.errorMessage == null) {
                             state.copy(
+                                finishState =
+                                    _uiState.value.finishState.takeIf { hasActiveWorkout } ?: WorkoutFinishState(),
                                 errorMessage = _uiState.value.errorMessage,
                                 deletedSetForUndo = _uiState.value.deletedSetForUndo,
                                 exerciseInfo = _uiState.value.exerciseInfo,
@@ -361,6 +384,8 @@ class ActiveWorkoutViewModel(
                             )
                         } else {
                             state.copy(
+                                finishState =
+                                    _uiState.value.finishState.takeIf { hasActiveWorkout } ?: WorkoutFinishState(),
                                 availableExercises = _uiState.value.availableExercises,
                                 deletedSetForUndo = _uiState.value.deletedSetForUndo,
                                 finishedWorkoutRunId = _uiState.value.finishedWorkoutRunId,
@@ -772,30 +797,81 @@ class ActiveWorkoutViewModel(
         }
     }
 
-    fun finishWorkout() {
-        val workoutRunId = _uiState.value.activeWorkout?.runId ?: return
-
-        _uiState.update { state ->
-            state.copy(errorMessage = null)
+    fun prepareFinishWorkout() {
+        val state = _uiState.value
+        val runId = state.activeWorkout?.runId ?: return
+        if (state.finishState.isPreparing || state.finishState.isSaving) return
+        _uiState.update { it.copy(finishState = WorkoutFinishState(isPreparing = true)) }
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            try {
+                val preview = source.getScheduleUpdatePreview(runId)
+                if (_uiState.value.activeWorkout?.runId == runId) {
+                    _uiState.update { it.copy(finishState = WorkoutFinishState(scheduleUpdate = preview)) }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                _uiState.update {
+                    it.copy(
+                        finishState =
+                            WorkoutFinishState(
+                                error = "Unable to load schedule changes. You can finish without updating it.",
+                            ),
+                    )
+                }
+            }
         }
+    }
+
+    fun finishWorkout() = finishWorkout(updateSchedule = false)
+
+    fun finishWorkoutUpdatingSchedule() = finishWorkout(updateSchedule = true)
+
+    private fun finishWorkout(updateSchedule: Boolean) {
+        val state = _uiState.value
+        val workoutRunId =
+            state.activeWorkout
+                ?.takeUnless { state.finishState.isPreparing || state.finishState.isSaving }
+                ?.runId ?: return
+        val preview = state.finishState.scheduleUpdate
+        if (updateSchedule && (preview == null || preview.unavailableReason != null)) return
+        _uiState.update { it.copy(errorMessage = null, finishState = it.finishState.copy(isSaving = true)) }
 
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             runCatching {
-                source.finishWorkout(workoutRunId, nowMillis())
+                if (updateSchedule) {
+                    source.finishWorkoutUpdatingSchedule(workoutRunId, nowMillis(), requireNotNull(preview))
+                } else {
+                    source.finishWorkout(workoutRunId, nowMillis())
+                }
             }.onSuccess {
-                _uiState.update { state ->
-                    state.copy(
+                _uiState.update {
+                    it.copy(
                         activeWorkout = null,
                         deletedSetForUndo = null,
                         exerciseInfo = null,
+                        finishState = WorkoutFinishState(),
                         finishedWorkoutRunId = workoutRunId,
                     )
                 }
-            }.onFailure {
-                _uiState.update { state ->
-                    state.copy(errorMessage = "Unable to finish workout")
-                }
+            }.onFailure { error -> handleFinishFailure(error, updateSchedule) }
+        }
+    }
+
+    private fun handleFinishFailure(
+        error: Throwable,
+        updateSchedule: Boolean,
+    ) {
+        if (error is CancellationException) throw error
+        val message =
+            when {
+                updateSchedule && error is IllegalArgumentException ->
+                    error.message ?: "Review the schedule and try again"
+                updateSchedule -> "Unable to update schedule and finish workout"
+                else -> "Unable to finish workout"
             }
+        _uiState.update {
+            it.copy(finishState = it.finishState.copy(isSaving = false), errorMessage = message)
         }
     }
 

@@ -4,6 +4,7 @@ import com.brokenpip3.gymbro.data.entities.ExerciseEntity
 import com.brokenpip3.gymbro.data.entities.ExerciseResultEntity
 import com.brokenpip3.gymbro.data.entities.SetResultEntity
 import com.brokenpip3.gymbro.data.entities.WorkoutRunEntity
+import com.brokenpip3.gymbro.data.repositories.WorkoutScheduleUpdate
 import com.brokenpip3.gymbro.domain.TrackingMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -20,6 +21,130 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 @Suppress("LargeClass")
 class ActiveWorkoutViewModelTest {
+    @Test
+    fun stalePreviewErrorAsksForReviewAndReopeningLoadsLatestPreview() =
+        runTest {
+            val source = activeWorkoutSourceWithSets()
+            source.scheduleUpdate = WorkoutScheduleUpdate(7, null, emptyList(), emptyList())
+            source.scheduleSaveError = IllegalArgumentException("The workout changed. Review it again before saving.")
+            val vm = ActiveWorkoutViewModel(source, coroutineScope = viewModelScope())
+            vm.prepareFinishWorkout()
+            advanceUntilIdle()
+            vm.finishWorkoutUpdatingSchedule()
+            advanceUntilIdle()
+            assertEquals("The workout changed. Review it again before saving.", vm.uiState.value.errorMessage)
+            source.scheduleSaveError = null
+            vm.prepareFinishWorkout()
+            advanceUntilIdle()
+            assertEquals(2, source.previewCalls)
+            vm.finishWorkoutUpdatingSchedule()
+            advanceUntilIdle()
+            assertEquals(7L, vm.uiState.value.finishedWorkoutRunId)
+        }
+
+    @Test
+    fun previewLoadingAndSaveInProgressPreventDuplicateSubmissions() =
+        runTest {
+            val source = activeWorkoutSourceWithSets()
+            val preview = WorkoutScheduleUpdate(7, null, emptyList(), emptyList())
+            val previewGate = kotlinx.coroutines.CompletableDeferred<WorkoutScheduleUpdate?>()
+            val saveGate = kotlinx.coroutines.CompletableDeferred<Unit>()
+            source.previewGate = previewGate
+            source.saveGate = saveGate
+            val vm = ActiveWorkoutViewModel(source, coroutineScope = viewModelScope())
+            vm.prepareFinishWorkout()
+            vm.prepareFinishWorkout()
+            vm.finishWorkout()
+            assertEquals(1, source.previewCalls)
+            assertEquals(true, vm.uiState.value.finishState.isPreparing)
+            assertEquals(null, source.finishedWorkoutRunId)
+            previewGate.complete(preview)
+            advanceUntilIdle()
+            vm.finishWorkoutUpdatingSchedule()
+            vm.finishWorkoutUpdatingSchedule()
+            assertEquals(true, vm.uiState.value.finishState.isSaving)
+            assertEquals(1, source.scheduleSaveCalls)
+            saveGate.complete(Unit)
+            advanceUntilIdle()
+            assertEquals(7L, vm.uiState.value.finishedWorkoutRunId)
+        }
+
+    @Test
+    fun failedPreviewStillAllowsFinishingWithoutScheduleChanges() =
+        runTest {
+            val source = activeWorkoutSourceWithSets()
+            source.previewGate =
+                kotlinx.coroutines.CompletableDeferred<WorkoutScheduleUpdate?>().apply {
+                    completeExceptionally(IllegalStateException("Load failed"))
+                }
+            val vm = ActiveWorkoutViewModel(source, coroutineScope = viewModelScope())
+            vm.prepareFinishWorkout()
+            advanceUntilIdle()
+            assertEquals(false, vm.uiState.value.finishState.isPreparing)
+            org.junit.Assert.assertNotNull(vm.uiState.value.finishState.error)
+            vm.finishWorkout()
+            advanceUntilIdle()
+            assertEquals(7L, vm.uiState.value.finishedWorkoutRunId)
+        }
+
+    @Test
+    fun preparingFinishOffersPreviewAndOnlyExplicitSaveUpdatesSchedule() =
+        runTest {
+            val source = activeWorkoutSourceWithSets()
+            val preview = WorkoutScheduleUpdate(7, null, emptyList(), emptyList())
+            source.scheduleUpdate = preview
+            val vm = ActiveWorkoutViewModel(source, nowMillis = { 2000 }, coroutineScope = viewModelScope())
+            advanceUntilIdle()
+            vm.prepareFinishWorkout()
+            advanceUntilIdle()
+            assertEquals(preview, vm.uiState.value.finishState.scheduleUpdate)
+            assertEquals(null, source.savedScheduleUpdate)
+            vm.finishWorkoutUpdatingSchedule()
+            advanceUntilIdle()
+            assertEquals(preview, source.savedScheduleUpdate)
+            assertEquals(7L, vm.uiState.value.finishedWorkoutRunId)
+            assertEquals(null, vm.uiState.value.activeWorkout)
+        }
+
+    @Test
+    fun decliningScheduleUpdateFinishesWithoutSavingDefaults() =
+        runTest {
+            val source = activeWorkoutSourceWithSets()
+            source.scheduleUpdate = WorkoutScheduleUpdate(7, null, emptyList(), emptyList())
+            val vm = ActiveWorkoutViewModel(source, coroutineScope = viewModelScope())
+            vm.prepareFinishWorkout()
+            advanceUntilIdle()
+            vm.finishWorkout()
+            advanceUntilIdle()
+            assertEquals(null, source.savedScheduleUpdate)
+            assertEquals(7L, source.finishedWorkoutRunId)
+        }
+
+    @Test
+    fun scheduleSaveFailurePreservesWorkoutAndCanRetry() =
+        runTest {
+            val source = activeWorkoutSourceWithSets()
+            source.scheduleUpdate = WorkoutScheduleUpdate(7, null, emptyList(), emptyList())
+            source.failScheduleSave = true
+            val vm = ActiveWorkoutViewModel(source, coroutineScope = viewModelScope())
+            vm.prepareFinishWorkout()
+            advanceUntilIdle()
+            vm.finishWorkoutUpdatingSchedule()
+            advanceUntilIdle()
+            assertEquals(
+                7L,
+                vm.uiState.value.activeWorkout
+                    ?.runId,
+            )
+            assertEquals(false, vm.uiState.value.finishState.isSaving)
+            assertEquals("Unable to update schedule and finish workout", vm.uiState.value.errorMessage)
+            assertEquals(null, vm.uiState.value.finishedWorkoutRunId)
+            source.failScheduleSave = false
+            vm.finishWorkoutUpdatingSchedule()
+            advanceUntilIdle()
+            assertEquals(7L, vm.uiState.value.finishedWorkoutRunId)
+        }
+
     @Test
     fun noActiveWorkoutEmitsEmptyState() =
         runTest {
@@ -1301,6 +1426,33 @@ private class FakeActiveWorkoutSource(
     availableExercises: List<ExerciseEntity> = emptyList(),
     private val failAddExercise: Boolean = false,
 ) : ActiveWorkoutSource {
+    var scheduleUpdate: WorkoutScheduleUpdate? = null
+    var savedScheduleUpdate: WorkoutScheduleUpdate? = null
+    var scheduleSaveError: Exception? = null
+    var failScheduleSave = false
+    var previewGate: kotlinx.coroutines.CompletableDeferred<WorkoutScheduleUpdate?>? = null
+    var saveGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+    var previewCalls = 0
+    var scheduleSaveCalls = 0
+
+    override suspend fun getScheduleUpdatePreview(workoutRunId: Long): WorkoutScheduleUpdate? {
+        previewCalls += 1
+        return previewGate?.await() ?: scheduleUpdate
+    }
+
+    override suspend fun finishWorkoutUpdatingSchedule(
+        workoutRunId: Long,
+        nowMillis: Long,
+        scheduleUpdate: WorkoutScheduleUpdate,
+    ) {
+        scheduleSaveCalls += 1
+        saveGate?.await()
+        scheduleSaveError?.let { throw it }
+        check(!failScheduleSave) { "Save failed" }
+        savedScheduleUpdate = scheduleUpdate
+        finishWorkout(workoutRunId, nowMillis)
+    }
+
     private val exerciseResultFlow = MutableStateFlow(exerciseResults)
     private val availableExerciseFlow = MutableStateFlow(availableExercises)
     private val setResultFlows =

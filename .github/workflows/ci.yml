@@ -45,7 +45,7 @@ jobs:
           path: |
             .gradle-home/caches
             .gradle-home/wrapper
-          key: v2-${{ runner.os }}-gradle-gymbro-ci-${{ hashFiles('flake.nix', 'flake.lock', 'justfile', 'gradle.properties', '**/*.gradle*', '**/gradle-wrapper.properties') }}
+          key: v2-${{ runner.os }}-gradle-gymbro-ci-${{ hashFiles('flake.nix', 'flake.lock', 'justfile', 'gradle.properties', 'settings.gradle.kts', 'build.gradle.kts', 'android/build.gradle.kts', 'gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: |
             v2-${{ runner.os }}-gradle-gymbro-ci-
 

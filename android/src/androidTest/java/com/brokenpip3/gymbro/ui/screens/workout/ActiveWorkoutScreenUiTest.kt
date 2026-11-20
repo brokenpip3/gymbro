@@ -6,6 +6,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -19,6 +22,9 @@ import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.brokenpip3.gymbro.data.entities.ScheduleExerciseEntity
+import com.brokenpip3.gymbro.data.repositories.WorkoutScheduleExercise
+import com.brokenpip3.gymbro.data.repositories.WorkoutScheduleUpdate
 import com.brokenpip3.gymbro.domain.TrackingMode
 import com.brokenpip3.gymbro.ui.theme.GymbroTheme
 import org.junit.Assert.assertEquals
@@ -30,6 +36,74 @@ import org.junit.runner.RunWith
 class ActiveWorkoutScreenUiTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun finishConfirmationWaitsForPreparationAndSaving() {
+        val state = androidx.compose.runtime.mutableStateOf(WorkoutFinishState(isPreparing = true))
+        composeRule.setContent {
+            GymbroTheme {
+                FinishWorkoutConfirmationDialog(state.value, onDismiss = {}, onConfirm = {})
+            }
+        }
+        composeRule.onNodeWithText("Finish").assertIsNotEnabled()
+        composeRule.runOnIdle { state.value = WorkoutFinishState(isSaving = true) }
+        composeRule.onNodeWithText("Finishing...").assertIsNotEnabled()
+        composeRule.onNodeWithText("Keep training").assertIsNotEnabled()
+        composeRule.runOnIdle { state.value = WorkoutFinishState() }
+        composeRule.onNodeWithText("Finish").assertIsEnabled()
+    }
+
+    @Test
+    fun changedWorkoutRequiresExplicitOptInToSaveSchedule() {
+        var normalFinishes = 0
+        var scheduleFinishes = 0
+        composeRule.setContent {
+            GymbroTheme {
+                ActiveWorkoutScreen(
+                    uiState = activeWorkoutState().copy(finishState = WorkoutFinishState(scheduleUpdate = schedulePreview())),
+                    onFinishWorkout = { normalFinishes += 1 },
+                    onFinishWorkoutUpdatingSchedule = { scheduleFinishes += 1 },
+                )
+            }
+        }
+        composeRule.onNodeWithTag("active-workout-list").performScrollToNode(hasText("Finish Workout"))
+        composeRule.onNodeWithText("Finish Workout").performClick()
+        composeRule.onNodeWithTag("update-schedule-checkbox").assertIsOff()
+        composeRule.onNodeWithText("Finish").performClick()
+        assertEquals(1, normalFinishes)
+        assertEquals(0, scheduleFinishes)
+
+        composeRule.onNodeWithText("Finish Workout").performClick()
+        composeRule.onNodeWithTag("update-schedule-checkbox").performClick()
+        composeRule.onNodeWithText("Finish").performClick()
+        assertEquals(1, normalFinishes)
+        assertEquals(1, scheduleFinishes)
+    }
+
+    @Test
+    fun deletedDefinitionsDisableScheduleUpdateButAllowFinishing() {
+        var finished = false
+        composeRule.setContent {
+            GymbroTheme {
+                ActiveWorkoutScreen(
+                    uiState =
+                        activeWorkoutState().copy(
+                            finishState =
+                                WorkoutFinishState(
+                                    scheduleUpdate = schedulePreview().copy(unavailableReason = "An exercise was deleted."),
+                                ),
+                        ),
+                    onFinishWorkout = { finished = true },
+                )
+            }
+        }
+        composeRule.onNodeWithTag("active-workout-list").performScrollToNode(hasText("Finish Workout"))
+        composeRule.onNodeWithText("Finish Workout").performClick()
+        composeRule.onNodeWithTag("update-schedule-checkbox").assertIsNotEnabled()
+        composeRule.onNodeWithText("An exercise was deleted.").assertIsDisplayed()
+        composeRule.onNodeWithText("Finish").performClick()
+        assertEquals(true, finished)
+    }
 
     @Test
     fun activeWorkoutShowsCoreActionsAndStrengthFields() {
@@ -416,4 +490,29 @@ private fun activeWorkoutState(
         availableExercises = availableExercises,
         exerciseInfo = exerciseInfo,
         deletedSetForUndo = deletedSetForUndo,
+    )
+
+private fun schedulePreview(): WorkoutScheduleUpdate =
+    WorkoutScheduleUpdate(
+        workoutRunId = 7,
+        schedule = null,
+        originalExercises = emptyList(),
+        exercises =
+            listOf(
+                WorkoutScheduleExercise(
+                    name = "New press",
+                    trackingMode = "strength",
+                    defaults =
+                        ScheduleExerciseEntity(
+                            scheduleId = 1,
+                            exerciseId = 1,
+                            sortOrder = 0,
+                            targetSets = 2,
+                            targetReps = 8,
+                            targetWeight = 20.0,
+                            targetDurationSeconds = null,
+                            targetDistance = null,
+                        ),
+                ),
+            ),
     )
