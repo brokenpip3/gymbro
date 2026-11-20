@@ -6,6 +6,8 @@ Gymbro is a private, local-only Android workout tracker. Your data stays on your
 
 ## Features
 
+
+
 - Create and edit exercises and schedules.
 - Select multiple exercises while building a schedule and keep their order.
 - Resume an unfinished workout after closing the app.
