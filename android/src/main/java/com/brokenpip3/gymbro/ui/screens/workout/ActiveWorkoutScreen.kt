@@ -396,6 +396,8 @@ private fun ActiveWorkoutContent(
     }
 
     editRequest?.let { request ->
+        val exercise = workout.exercises.find { it.exerciseResultId == request.exerciseResultId }
+        val isOnlySet = exercise?.sets?.singleOrNull()?.id == request.setId
         SetEditDialog(
             request = request,
             onDismiss = { editRequest = null },
@@ -403,6 +405,15 @@ private fun ActiveWorkoutContent(
                 actions.onDeleteSet(request.setId)
                 editRequest = null
             },
+            onDeleteExercise =
+                if (isOnlySet) {
+                    {
+                        actions.onDeleteExercise(request.exerciseResultId)
+                        editRequest = null
+                    }
+                } else {
+                    null
+                },
             onSave = { setId, repsText, weightText, minutesText, secondsText, distanceText, notesText ->
                 actions.onUpdateSetMetrics(setId, repsText, weightText, minutesText, secondsText, distanceText)
                 actions.onUpdateSetNotes(setId, notesText)
@@ -611,10 +622,10 @@ private fun DismissibleExerciseItem(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.End,
             ) {
-                Text(
-                    text = "Delete",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.labelLarge,
+                Icon(
+                    imageVector = GymbroIcons.Delete,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
                 )
             }
         },
@@ -622,7 +633,7 @@ private fun DismissibleExerciseItem(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.small,
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f),
+            color = MaterialTheme.colorScheme.surfaceVariant,
             tonalElevation = 1.dp,
         ) {
             ExerciseRoutineSection(
@@ -1172,6 +1183,7 @@ private fun SetEditDialog(
     request: SetEditRequest,
     onDismiss: () -> Unit,
     onDelete: () -> Unit,
+    onDeleteExercise: (() -> Unit)?,
     onSave: (
         setId: Long,
         repsText: String,
@@ -1248,6 +1260,17 @@ private fun SetEditDialog(
                     }
                 }
                 SetEditNotesField(notesText, { notesText = it })
+                if (onDeleteExercise != null) {
+                    TextButton(
+                        modifier = Modifier.align(Alignment.End),
+                        onClick = {
+                            keyboardDismissal.dismiss()
+                            onDeleteExercise()
+                        },
+                    ) {
+                        Text(text = "Delete exercise", color = MaterialTheme.colorScheme.error)
+                    }
+                }
             }
         },
         confirmButton = {
@@ -1261,21 +1284,27 @@ private fun SetEditDialog(
             }
         },
         dismissButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onDismiss) {
-                    Text(text = "Cancel")
-                }
-                TextButton(
-                    onClick = {
-                        keyboardDismissal.dismiss()
-                        onDelete()
-                    },
-                ) {
-                    Text(text = "Delete set", color = MaterialTheme.colorScheme.error)
-                }
+            SetEditDismissButtons(onCancel = onDismiss) {
+                keyboardDismissal.dismiss()
+                onDelete()
             }
         },
     )
+}
+
+@Composable
+private fun SetEditDismissButtons(
+    onCancel: () -> Unit,
+    onDeleteSet: () -> Unit,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        TextButton(onClick = onCancel) {
+            Text(text = "Cancel")
+        }
+        TextButton(onClick = onDeleteSet) {
+            Text(text = "Delete set", color = MaterialTheme.colorScheme.error)
+        }
+    }
 }
 
 @Composable

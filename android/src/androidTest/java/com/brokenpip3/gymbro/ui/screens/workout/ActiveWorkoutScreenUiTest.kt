@@ -256,17 +256,54 @@ class ActiveWorkoutScreenUiTest {
     }
 
     @Test
-    fun editDialogOffersDeleteAndNotesForAnySet() {
+    fun editDialogOffersDeleteSetOnlyWhenOtherSetsRemain() {
+        val state = activeWorkoutState()
+        val workout = requireNotNull(state.activeWorkout)
+        val exercise = workout.exercises.single()
+        val set = exercise.sets.single()
+        val exerciseWithTwoSets = exercise.copy(sets = listOf(set, set.copy(id = 102L, setOrder = 1, reps = 9)))
+        var deletedSetId: Long? = null
         composeRule.setContent {
             GymbroTheme {
-                ActiveWorkoutScreen(uiState = activeWorkoutState())
+                ActiveWorkoutScreen(
+                    uiState = state.copy(activeWorkout = workout.copy(exercises = listOf(exerciseWithTwoSets))),
+                    onDeleteSet = { deletedSetId = it },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Delete").assertDoesNotExist()
+        composeRule.onNodeWithText("9").performClick()
+
+        composeRule.onNodeWithTag("workout-edit-input-Notes").assertIsDisplayed()
+        composeRule.onNodeWithText("Delete exercise").assertDoesNotExist()
+        composeRule.onNodeWithText("Delete set").performClick()
+
+        assertEquals(102L, deletedSetId)
+    }
+
+    @Test
+    fun editingTheOnlySetAlsoOffersToDeleteTheExercise() {
+        var deletedExerciseId: Long? = null
+        var deletedSetId: Long? = null
+        composeRule.setContent {
+            GymbroTheme {
+                ActiveWorkoutScreen(
+                    uiState = activeWorkoutState(),
+                    onDeleteExercise = { deletedExerciseId = it },
+                    onDeleteSet = { deletedSetId = it },
+                )
             }
         }
 
         composeRule.onNodeWithText("8").performClick()
 
-        composeRule.onNodeWithTag("workout-edit-input-Notes").assertIsDisplayed()
         composeRule.onNodeWithText("Delete set").assertIsDisplayed()
+        composeRule.onNodeWithText("Delete exercise").performClick()
+
+        assertEquals(10L, deletedExerciseId)
+        assertEquals(null, deletedSetId)
+        composeRule.onNodeWithText("Edit Set").assertDoesNotExist()
     }
 
     @Test
