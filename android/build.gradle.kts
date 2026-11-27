@@ -141,7 +141,7 @@ dependencies {
     testImplementation("androidx.test:core:1.7.0")
     testImplementation("androidx.navigation:navigation-testing:2.10.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")
-    testImplementation("org.robolectric:robolectric:4.18")
+    testImplementation("org.robolectric:robolectric:4.18.1")
 
     androidTestImplementation(platform("androidx.compose:compose-bom:2026.06.00"))
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
